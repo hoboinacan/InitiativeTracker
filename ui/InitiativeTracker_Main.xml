@@ -21,7 +21,7 @@
                 HorizontalAlignment="Left"
                 VerticalAlignment="Center"
                 Background="#444" Foreground="#EEE"/>
-        <StackPanel Name="MainPanel" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Top">
+        <StackPanel Name="MainPanel" Grid.Row="2" HorizontalAlignment="Stretch" VerticalAlignment="Top">
             <Button Name="InsertButton" Grid.Row="1" Content="+"
                     Width="40" Height="40"
                     FontSize="24"

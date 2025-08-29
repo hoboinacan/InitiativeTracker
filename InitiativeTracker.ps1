@@ -38,9 +38,14 @@ $button.Add_Click({
     # Create a grid for the panel layout
     $newPanel = New-Object System.Windows.Controls.Grid
     $newPanel.Margin = [System.Windows.Thickness]::new(0,0,0,10)
+    $newPanel.HorizontalAlignment = "Stretch"
+    $newPanel.Width = [double]::NaN
     $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
     $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
     $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
+    $newPanel.ColumnDefinitions[0].Width = [System.Windows.GridLength]::Auto
+    $newPanel.ColumnDefinitions[1].Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+    $newPanel.ColumnDefinitions[2].Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
     # First column: Initiative value with label above
     $col1Panel = New-Object System.Windows.Controls.StackPanel
     $col1Panel.Orientation = "Vertical"
@@ -57,11 +62,15 @@ $button.Add_Click({
     $initiativeValue.TextAlignment = "Center"
     $col1Panel.Children.Add($initiativeValue)
     [System.Windows.Controls.Grid]::SetColumn($col1Panel, 0)
-    # Second column: textbox2
-    $textBox2 = New-Object System.Windows.Controls.TextBox
-    $textBox2.Width = 150
-    $textBox2.Margin = [System.Windows.Thickness]::new(5,0,0,0)
-    [System.Windows.Controls.Grid]::SetColumn($textBox2, 1)
+    # Second column: Character name textbox
+    $characterNameBox = New-Object System.Windows.Controls.TextBox
+    $characterNameBox.Width = 150
+    $characterNameBox.Background = $null
+    $characterNameBox.Foreground = "#00ff00"
+    $characterNameBox.FontSize = 24
+    $characterNameBox.VerticalContentAlignment = "Center"
+    $characterNameBox.Margin = [System.Windows.Thickness]::new(5,0,0,0)
+    [System.Windows.Controls.Grid]::SetColumn($characterNameBox, 1)
     # Third column: label "Conditions" at the top
     $col3Panel = New-Object System.Windows.Controls.StackPanel
     $col3Panel.Orientation = "Vertical"
@@ -73,7 +82,7 @@ $button.Add_Click({
     $col3Panel.Children.Add($conditionsLabel)
     [System.Windows.Controls.Grid]::SetColumn($col3Panel, 2)
     $newPanel.Children.Add($col1Panel)
-    $newPanel.Children.Add($textBox2)
+    $newPanel.Children.Add($characterNameBox)
     $newPanel.Children.Add($col3Panel)
     # Add right-click menu to remove panel
     $contextMenu = New-Object System.Windows.Controls.ContextMenu
