@@ -16,6 +16,23 @@ $conditionsPath = Join-Path $PSScriptRoot 'cfg\conditions.json'
 $conditionsJson = Get-Content $conditionsPath -Raw
 $conditions = ConvertFrom-Json $conditionsJson
 
+function Set-AlternateShading {
+    param($panel, $highlightedIndex = $null)
+    $index = 0
+    foreach ($child in $panel.Children) {
+        if ($child -is [System.Windows.Controls.Grid]) {
+            if ($highlightedIndex -ne $null -and $index -eq $highlightedIndex) {
+                $child.Background = "#5555FF"
+            } elseif ($index % 2 -eq 0) {
+                $child.Background = "#222"
+            } else {
+                $child.Background = "#333"
+            }
+            $index++
+        }
+    }
+}
+
 # Add the click event handler
 $button.Add_Click({
     # Create a grid for the panel layout
@@ -66,12 +83,14 @@ $button.Add_Click({
         param($sourceObj, $e)
         $parentPanel = $sourceObj.Parent.PlacementTarget
         $mainPanel.Children.Remove($parentPanel)
+        Set-AlternateShading $mainPanel
     })
     $contextMenu.Items.Add($removeMenuItem)
     $newPanel.ContextMenu = $contextMenu
     # Insert the new panel at the end but before the button (if button is in MainPanel)
     $insertIndex = $mainPanel.Children.Count - 1
     $mainPanel.Children.Insert($insertIndex, $newPanel)
+    Set-AlternateShading $mainPanel
 
     #only allow Initiative to be float values
     $initiativeValue.Add_PreviewTextInput({
@@ -126,6 +145,7 @@ $sortMenuItem.Add_Click({
     foreach ($panel in $sortedPanels) {
         $mainPanel.Children.Insert($insertIndex, $panel)
     }
+    Set-AlternateShading $mainPanel
 })
 
 # Track the current highlighted index
@@ -144,13 +164,8 @@ $nextRoundButton.Add_Click({
         }
     }
     if ($panels.Count -eq 0) { return }
-    # Remove highlight from all panels
-    foreach ($panel in $panels) {
-        $panel.Background = $null
-    }
-    # Highlight the next panel
-    $panelToHighlight = $panels[$script:currentIndex % $panels.Count]
-    $panelToHighlight.Background = "#5555FF"
+    $highlightIndex = $script:currentIndex % $panels.Count
+    Set-AlternateShading $mainPanel $highlightIndex
     $script:currentIndex++
 })
 
