@@ -29,6 +29,8 @@ $button.Add_Click({
     $col1Panel.Orientation = "Vertical"
     $initiativeLabel = New-Object System.Windows.Controls.Label
     $initiativeLabel.Content = "Initiative"
+    $initiativeLabel.Background="#333"
+    $initiativeLabel.Foreground="#EEE"
     $initiativeLabel.VerticalAlignment = "Center"
     $col1Panel.Children.Add($initiativeLabel)
     $initiativeValue = New-Object System.Windows.Controls.TextBox
@@ -48,6 +50,8 @@ $button.Add_Click({
     $col3Panel.Orientation = "Vertical"
     $conditionsLabel = New-Object System.Windows.Controls.Label
     $conditionsLabel.Content = "Conditions"
+    $conditionsLabel.Background="#333"
+    $conditionsLabel.Foreground="#EEE"
     $conditionsLabel.VerticalAlignment = "Center"
     $col3Panel.Children.Add($conditionsLabel)
     [System.Windows.Controls.Grid]::SetColumn($col3Panel, 2)
@@ -93,6 +97,61 @@ $button.Add_Click({
             $sourceObj.SelectionStart = $sourceObj.Text.Length
         }
     })
+})
+
+# Get the SortMenuItem from XAML
+$sortMenuItem = $window.FindName("SortMenuItem")
+
+# Add click event to SortMenuItem to sort MainPanel children by initiativeValue (descending)
+$sortMenuItem.Add_Click({
+    # Get all panels except the InsertButton
+    $panels = @()
+    foreach ($child in $mainPanel.Children) {
+        if ($child -is [System.Windows.Controls.Grid]) {
+            $panels += $child
+        }
+    }
+    # Sort panels by initiativeValue (ascending because insertion will reverse order)
+    $sortedPanels = $panels | Sort-Object {
+        $col1Panel = $_.Children[0]
+        $initiativeValue = $col1Panel.Children[1]
+        [float]$initiativeValue.Text
+    }
+    # Remove all panels from MainPanel
+    foreach ($panel in $panels) {
+        $mainPanel.Children.Remove($panel)
+    }
+    # Re-insert sorted panels before the InsertButton
+    $insertIndex = $mainPanel.Children.Count - 1
+    foreach ($panel in $sortedPanels) {
+        $mainPanel.Children.Insert($insertIndex, $panel)
+    }
+})
+
+# Track the current highlighted index
+if (-not (Get-Variable -Name currentIndex -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:currentIndex = 0
+}
+
+# Add click event to NextRoundButton to highlight the next item in MainPanel
+$nextRoundButton = $window.FindName("NextRoundButton")
+$nextRoundButton.Add_Click({
+    # Get all panels except the InsertButton
+    $panels = @()
+    foreach ($child in $mainPanel.Children) {
+        if ($child -is [System.Windows.Controls.Grid]) {
+            $panels += $child
+        }
+    }
+    if ($panels.Count -eq 0) { return }
+    # Remove highlight from all panels
+    foreach ($panel in $panels) {
+        $panel.Background = $null
+    }
+    # Highlight the next panel
+    $panelToHighlight = $panels[$script:currentIndex % $panels.Count]
+    $panelToHighlight.Background = "#5555FF"
+    $script:currentIndex++
 })
 
 # Show the window

@@ -1,23 +1,26 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         Title="Initiative Tracker" Height="400" Width="500"
-        WindowStartupLocation="CenterScreen">
-    <Grid>
+        WindowStartupLocation="CenterScreen"
+        Background="#222">
+    <Grid Background="#222">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <Menu Grid.Row="0">
-            <MenuItem Header="File">
-                <MenuItem Name="ExportMenuItem" Header="Export Encounter"/>
-                <MenuItem Name="ImportMenuItem" Header="Import Encounter"/>
+        <Menu Grid.Row="0" Background="#333" Foreground="#EEE">
+            <MenuItem Header="File" Background="#333" Foreground="#EEE">
+                <MenuItem Name="ExportMenuItem" Header="Export Encounter" Background="#333" Foreground="#EEE"/>
+                <MenuItem Name="ImportMenuItem" Header="Import Encounter" Background="#333" Foreground="#EEE"/>
+                <MenuItem Name="SortMenuItem" Header="Sort Encounter" Background="#333" Foreground="#EEE"/>
             </MenuItem>
         </Menu>
-        <Button Name="NextRoundButton" Grid.Row="1" Content="->"
-                Width="40" Height="40"
-                FontSize="24"
+        <Button Name="NextRoundButton" Grid.Row="1" Content="Next Turn"
+                Width="80" Height="30"
+                FontSize="16"
                 HorizontalAlignment="Left"
-                VerticalAlignment="Center"/>
+                VerticalAlignment="Center"
+                Background="#444" Foreground="#EEE"/>
         <StackPanel Name="MainPanel" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Top">
             <Button Name="InsertButton" Grid.Row="1" Content="+"
                     Width="40" Height="40"
