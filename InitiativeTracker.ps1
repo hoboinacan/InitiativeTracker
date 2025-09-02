@@ -1,4 +1,5 @@
 Add-Type -AssemblyName PresentationFramework
+Add-Type -AssemblyName System.Windows.Forms
 
 # Define the XAML for the window
 [xml]$xaml = Get-Content .\ui\InitiativeTracker_Main.xml -Raw
@@ -176,6 +177,141 @@ $nextRoundButton.Add_Click({
     $highlightIndex = $script:currentIndex % $panels.Count
     Set-AlternateShading $mainPanel $highlightIndex
     $script:currentIndex++
+})
+
+# Get the ExportMenuItem from XAML
+$exportMenuItem = $window.FindName("ExportMenuItem")
+
+# Add click event to ExportMenuItem to export encounter data to JSON file
+$exportMenuItem.Add_Click({
+    $encounter = @()
+    foreach ($child in $mainPanel.Children) {
+        if ($child -is [System.Windows.Controls.Grid]) {
+            $initiative = $child.Children[0].Children[1].Text
+            $name = $child.Children[1].Text
+            $conditions = $child.Children[2].Text
+            $encounter += [PSCustomObject]@{
+                Initiative = $initiative
+                Name = $name
+                Conditions = $conditions
+            }
+        }
+    }
+    $json = $encounter | ConvertTo-Json -Depth 3
+    $saveFileDialog = New-Object System.Windows.Forms.SaveFileDialog
+    $saveFileDialog.Filter = "JSON files (*.json)|*.json"
+    $saveFileDialog.InitialDirectory = "$PSScriptRoot/encounters"
+    $saveFileDialog.Title = "Export Encounter"
+    $saveFileDialog.FileName = "encounter_export.json"
+    [void]$saveFileDialog.ShowDialog()
+    $filePath = $saveFileDialog.FileName
+    if (![string]::IsNullOrWhiteSpace($filePath)) {
+        Set-Content -Path $filePath -Value $json
+        [System.Windows.MessageBox]::Show("Encounter exported to $filePath")
+    }
+})
+
+# Get the ImportMenuItem from XAML
+$importMenuItem = $window.FindName("ImportMenuItem")
+
+# Add click event to ImportMenuItem to import encounter data from a JSON file
+$importMenuItem.Add_Click({
+    # Prompt user to select a JSON file
+    $openFileDialog = New-Object System.Windows.Forms.OpenFileDialog
+    $openFileDialog.Filter = "JSON files (*.json)|*.json"
+    $openFileDialog.InitialDirectory = "$PSScriptRoot/encounters"
+    $openFileDialog.Title = "Import Encounter"
+    [void]$openFileDialog.ShowDialog()
+    $filePath = $openFileDialog.FileName
+
+    if (![string]::IsNullOrWhiteSpace($filePath) -and (Test-Path $filePath)) {
+        # Read and parse the JSON file
+        $json = Get-Content $filePath -Raw
+        $encounter = ConvertFrom-Json $json
+
+        # Remove existing panels except InsertButton
+        $panelsToRemove = @()
+        foreach ($child in $mainPanel.Children) {
+            if ($child -is [System.Windows.Controls.Grid]) {
+                $panelsToRemove += $child
+            }
+        }
+        foreach ($panel in $panelsToRemove) {
+            $mainPanel.Children.Remove($panel)
+        }
+
+        # Add imported panels
+        foreach ($entry in $encounter) {
+            $newPanel = New-Object System.Windows.Controls.Grid
+            $newPanel.Margin = [System.Windows.Thickness]::new(0,0,0,10)
+            $newPanel.HorizontalAlignment = "Stretch"
+            $newPanel.Width = [double]::NaN
+            $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
+            $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
+            $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
+            $newPanel.ColumnDefinitions[0].Width = [System.Windows.GridLength]::Auto
+            $newPanel.ColumnDefinitions[1].Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+            $newPanel.ColumnDefinitions[2].Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+
+            # First column: Initiative value with label above
+            $col1Panel = New-Object System.Windows.Controls.StackPanel
+            $col1Panel.Orientation = "Vertical"
+            $initiativeLabel = New-Object System.Windows.Controls.Label
+            $initiativeLabel.Content = "Initiative"
+            $initiativeLabel.Background="#333"
+            $initiativeLabel.Foreground="#EEE"
+            $initiativeLabel.VerticalAlignment = "Center"
+            $col1Panel.Children.Add($initiativeLabel)
+            $initiativeValue = New-Object System.Windows.Controls.TextBox
+            $initiativeValue.Width = 50
+            $initiativeValue.Margin = [System.Windows.Thickness]::new(0,5,0,0)
+            $initiativeValue.Text = "$($entry.Initiative)"
+            $initiativeValue.TextAlignment = "Center"
+            $col1Panel.Children.Add($initiativeValue)
+            [System.Windows.Controls.Grid]::SetColumn($col1Panel, 0)
+
+            # Second column: Character name textbox
+            $characterNameBox = New-Object System.Windows.Controls.TextBox
+            $characterNameBox.Width = 150
+            $characterNameBox.Background = $null
+            $characterNameBox.Foreground = "#00ff00"
+            $characterNameBox.FontSize = 24
+            $characterNameBox.VerticalContentAlignment = "Center"
+            $characterNameBox.Margin = [System.Windows.Thickness]::new(5,0,0,0)
+            $characterNameBox.Text = "$($entry.Name)"
+            [System.Windows.Controls.Grid]::SetColumn($characterNameBox, 1)
+
+            # Third column: label "Conditions" at the top
+            $col3Panel = New-Object System.Windows.Controls.StackPanel
+            $col3Panel.Orientation = "Vertical"
+            $conditionsLabel = New-Object System.Windows.Controls.Label
+            $conditionsLabel.Content = "Conditions"
+            $conditionsLabel.Background="#333"
+            $conditionsLabel.Foreground="#EEE"
+            $conditionsLabel.VerticalAlignment = "Center"
+            $col3Panel.Children.Add($conditionsLabel)
+            [System.Windows.Controls.Grid]::SetColumn($col3Panel, 2)
+            $newPanel.Children.Add($col1Panel)
+            $newPanel.Children.Add($characterNameBox)
+            $newPanel.Children.Add($col3Panel)
+            # Add right-click menu to remove panel
+            $contextMenu = New-Object System.Windows.Controls.ContextMenu
+            $removeMenuItem = New-Object System.Windows.Controls.MenuItem
+            $removeMenuItem.Header = "Remove"
+            $removeMenuItem.Add_Click({
+                param($sourceObj, $e)
+                $parentPanel = $sourceObj.Parent.PlacementTarget
+                $mainPanel.Children.Remove($parentPanel)
+                Set-AlternateShading $mainPanel
+            })
+            $contextMenu.Items.Add($removeMenuItem)
+            $newPanel.ContextMenu = $contextMenu
+            # Insert the new panel at the end but before the button (if button is in MainPanel)
+            $insertIndex = $mainPanel.Children.Count - 1
+            $mainPanel.Children.Insert($insertIndex, $newPanel)
+        }
+        Set-AlternateShading $mainPanel
+    }
 })
 
 # Show the window
