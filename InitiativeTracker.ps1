@@ -9,7 +9,7 @@ $reader = (New-Object System.Xml.XmlNodeReader $xaml)
 $window = [Windows.Markup.XamlReader]::Load($reader)
 
 # Get the button control from the XAML
-$button = $window.FindName("InsertButton")
+$insertButton = $window.FindName("InsertButton")
 $mainPanel = $window.FindName("MainPanel")
 
 # Load conditions from conditions.json
@@ -17,12 +17,31 @@ $conditionsPath = Join-Path $PSScriptRoot 'cfg\conditions.json'
 $conditionsJson = Get-Content $conditionsPath -Raw
 $conditions = ConvertFrom-Json $conditionsJson
 
+# Track the current highlighted index
+if (-not (Get-Variable -Name highlightIndex -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:highlightIndex = 0
+}
+function Update-HighlightIndex {
+    param($panel)
+    $grids = @()
+    foreach ($child in $panel.Children) {
+        if ($child -is [System.Windows.Controls.Grid]) {
+            $grids += $child
+        }
+    }
+    if ($grids.Count -eq 0) { return $null }
+    if (++$script:highlightIndex -ge $grids.Count) {
+        $script:highlightIndex = 0
+    }
+    return $script:highlightIndex
+}
+
 function Set-AlternateShading {
     param($panel, $highlightedIndex = $null)
     $index = 0
     foreach ($child in $panel.Children) {
         if ($child -is [System.Windows.Controls.Grid]) {
-            if ($highlightedIndex -ne $null -and $index -eq $highlightedIndex) {
+            if ($null -ne $highlightedIndex -and $index -eq $highlightedIndex) {
                 $child.Background = "#5555FF"
             } elseif ($index % 2 -eq 0) {
                 $child.Background = "#222"
@@ -35,7 +54,7 @@ function Set-AlternateShading {
 }
 
 # Add the click event handler
-$button.Add_Click({
+$insertButton.Add_Click({
     # Create a grid for the panel layout
     $newPanel = New-Object System.Windows.Controls.Grid
     $newPanel.Margin = [System.Windows.Thickness]::new(0,0,0,10)
@@ -93,14 +112,14 @@ $button.Add_Click({
         param($sourceObj, $e)
         $parentPanel = $sourceObj.Parent.PlacementTarget
         $mainPanel.Children.Remove($parentPanel)
-        Set-AlternateShading $mainPanel
+        Set-AlternateShading $mainPanel $script:highlightIndex
     })
     $contextMenu.Items.Add($removeMenuItem)
     $newPanel.ContextMenu = $contextMenu
     # Insert the new panel at the end but before the button (if button is in MainPanel)
     $insertIndex = $mainPanel.Children.Count - 1
     $mainPanel.Children.Insert($insertIndex, $newPanel)
-    Set-AlternateShading $mainPanel
+    Set-AlternateShading $mainPanel $script:highlightIndex
 
     #only allow Initiative to be float values
     $initiativeValue.Add_PreviewTextInput({
@@ -155,13 +174,8 @@ $sortMenuItem.Add_Click({
     foreach ($panel in $sortedPanels) {
         $mainPanel.Children.Insert($insertIndex, $panel)
     }
-    Set-AlternateShading $mainPanel
+    Set-AlternateShading $mainPanel $script:highlightIndex
 })
-
-# Track the current highlighted index
-if (-not (Get-Variable -Name currentIndex -Scope Script -ErrorAction SilentlyContinue)) {
-    $script:currentIndex = 0
-}
 
 # Add click event to NextRoundButton to highlight the next item in MainPanel
 $nextRoundButton = $window.FindName("NextRoundButton")
@@ -174,9 +188,8 @@ $nextRoundButton.Add_Click({
         }
     }
     if ($panels.Count -eq 0) { return }
-    $highlightIndex = $script:currentIndex % $panels.Count
-    Set-AlternateShading $mainPanel $highlightIndex
-    $script:currentIndex++
+    Update-HighlightIndex $mainPanel
+    Set-AlternateShading $mainPanel $script:highlightIndex
 })
 
 # Get the ExportMenuItem from XAML
@@ -197,7 +210,11 @@ $exportMenuItem.Add_Click({
             }
         }
     }
-    $json = $encounter | ConvertTo-Json -Depth 3
+    $exportData = [PSCustomObject]@{
+        HighlightIndex = $script:highlightIndex
+        Encounter = $encounter
+    }
+    $json = $exportData | ConvertTo-Json -Depth 3
     $saveFileDialog = New-Object System.Windows.Forms.SaveFileDialog
     $saveFileDialog.Filter = "JSON files (*.json)|*.json"
     $saveFileDialog.InitialDirectory = "$PSScriptRoot/encounters"
@@ -227,7 +244,9 @@ $importMenuItem.Add_Click({
     if (![string]::IsNullOrWhiteSpace($filePath) -and (Test-Path $filePath)) {
         # Read and parse the JSON file
         $json = Get-Content $filePath -Raw
-        $encounter = ConvertFrom-Json $json
+        $importData = ConvertFrom-Json $json
+        $encounter = $importData.Encounter
+        $script:highlightIndex = $importData.HighlightIndex
 
         # Remove existing panels except InsertButton
         $panelsToRemove = @()
@@ -251,7 +270,8 @@ $importMenuItem.Add_Click({
             $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
             $newPanel.ColumnDefinitions[0].Width = [System.Windows.GridLength]::Auto
             $newPanel.ColumnDefinitions[1].Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
-            $newPanel.ColumnDefinitions[2].Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+            $newPanel.ColumnDefinitions[2].Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star
+)
 
             # First column: Initiative value with label above
             $col1Panel = New-Object System.Windows.Controls.StackPanel
@@ -302,7 +322,7 @@ $importMenuItem.Add_Click({
                 param($sourceObj, $e)
                 $parentPanel = $sourceObj.Parent.PlacementTarget
                 $mainPanel.Children.Remove($parentPanel)
-                Set-AlternateShading $mainPanel
+                Set-AlternateShading $mainPanel $script:highlightIndex
             })
             $contextMenu.Items.Add($removeMenuItem)
             $newPanel.ContextMenu = $contextMenu
@@ -310,7 +330,7 @@ $importMenuItem.Add_Click({
             $insertIndex = $mainPanel.Children.Count - 1
             $mainPanel.Children.Insert($insertIndex, $newPanel)
         }
-        Set-AlternateShading $mainPanel
+        Set-AlternateShading $mainPanel $script:highlightIndex
     }
 })
 
