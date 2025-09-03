@@ -53,36 +53,46 @@ function Set-AlternateShading {
     }
 }
 
-# Add the click event handler
-$insertButton.Add_Click({
-    # Create a grid for the panel layout
+function Add-EncounterPanel {
+    param(
+        [string]$initiative = "0",
+        [string]$name = "",
+        [string]$conditions = "",
+        [string]$currentHp = "Current HP",
+        [string]$totalHp = "Total HP"
+    )
     $newPanel = New-Object System.Windows.Controls.Grid
     $newPanel.Margin = [System.Windows.Thickness]::new(0,0,0,10)
     $newPanel.HorizontalAlignment = "Stretch"
     $newPanel.Width = [double]::NaN
-    $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
-    $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
-    $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
+    $newPanel.ColumnDefinitions.Clear()
+    $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition)) # Initiative
+    $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition)) # Name
+    $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition)) # HP
+    $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition)) # Conditions
     $newPanel.ColumnDefinitions[0].Width = [System.Windows.GridLength]::Auto
     $newPanel.ColumnDefinitions[1].Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
     $newPanel.ColumnDefinitions[2].Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
-    # First column: Initiative value with label above
-    $col1Panel = New-Object System.Windows.Controls.StackPanel
-    $col1Panel.Orientation = "Vertical"
+    $newPanel.ColumnDefinitions[3].Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+
+    # Initiative column
+    $initiativePanel = New-Object System.Windows.Controls.StackPanel
+    $initiativePanel.Orientation = "Vertical"
     $initiativeLabel = New-Object System.Windows.Controls.Label
     $initiativeLabel.Content = "Initiative"
     $initiativeLabel.Background="#333"
     $initiativeLabel.Foreground="#EEE"
     $initiativeLabel.VerticalAlignment = "Center"
-    $col1Panel.Children.Add($initiativeLabel)
     $initiativeValue = New-Object System.Windows.Controls.TextBox
     $initiativeValue.Width = 50
     $initiativeValue.Margin = [System.Windows.Thickness]::new(0,5,0,0)
-    $initiativeValue.Text = "0"
+    $initiativeValue.Text = $initiative
     $initiativeValue.TextAlignment = "Center"
-    $col1Panel.Children.Add($initiativeValue)
-    [System.Windows.Controls.Grid]::SetColumn($col1Panel, 0)
-    # Second column: Character name textbox
+    $null = $initiativePanel.Children.Add($initiativeLabel)
+    $null = $initiativePanel.Children.Add($initiativeValue)
+    [System.Windows.Controls.Grid]::SetColumn($initiativePanel, 0)
+
+    # Name column
     $characterNameBox = New-Object System.Windows.Controls.TextBox
     $characterNameBox.Width = 150
     $characterNameBox.Background = $null
@@ -90,8 +100,25 @@ $insertButton.Add_Click({
     $characterNameBox.FontSize = 24
     $characterNameBox.VerticalContentAlignment = "Center"
     $characterNameBox.Margin = [System.Windows.Thickness]::new(5,0,0,0)
+    $characterNameBox.Text = $name
     [System.Windows.Controls.Grid]::SetColumn($characterNameBox, 1)
-    # Third column: label "Conditions" at the top
+
+    # HP column
+    $hpPanel = New-Object System.Windows.Controls.StackPanel
+    $hpPanel.Orientation = "Vertical"
+    $hpPanel.Margin = [System.Windows.Thickness]::new(5,0,0,0)
+    $currentHpBox = New-Object System.Windows.Controls.TextBox
+    $currentHpBox.Width = 60
+    $currentHpBox.Margin = [System.Windows.Thickness]::new(0,0,0,2)
+    $currentHpBox.Text = $currentHp
+    $totalHpBox = New-Object System.Windows.Controls.TextBox
+    $totalHpBox.Width = 60
+    $totalHpBox.Text = $totalHp
+    $null = $hpPanel.Children.Add($currentHpBox)
+    $null = $hpPanel.Children.Add($totalHpBox)
+    [System.Windows.Controls.Grid]::SetColumn($hpPanel, 2)
+
+    # Conditions column
     $col3Panel = New-Object System.Windows.Controls.StackPanel
     $col3Panel.Orientation = "Vertical"
     $conditionsLabel = New-Object System.Windows.Controls.Label
@@ -99,11 +126,14 @@ $insertButton.Add_Click({
     $conditionsLabel.Background="#333"
     $conditionsLabel.Foreground="#EEE"
     $conditionsLabel.VerticalAlignment = "Center"
-    $col3Panel.Children.Add($conditionsLabel)
-    [System.Windows.Controls.Grid]::SetColumn($col3Panel, 2)
-    $newPanel.Children.Add($col1Panel)
-    $newPanel.Children.Add($characterNameBox)
-    $newPanel.Children.Add($col3Panel)
+    $null = $col3Panel.Children.Add($conditionsLabel)
+    [System.Windows.Controls.Grid]::SetColumn($col3Panel, 3)
+
+    $null = $newPanel.Children.Add($initiativePanel)
+    $null = $newPanel.Children.Add($characterNameBox)
+    $null = $newPanel.Children.Add($hpPanel)
+    $null = $newPanel.Children.Add($col3Panel)
+
     # Add right-click menu to remove panel
     $contextMenu = New-Object System.Windows.Controls.ContextMenu
     $removeMenuItem = New-Object System.Windows.Controls.MenuItem
@@ -114,14 +144,21 @@ $insertButton.Add_Click({
         $mainPanel.Children.Remove($parentPanel)
         Set-AlternateShading $mainPanel $script:highlightIndex
     })
-    $contextMenu.Items.Add($removeMenuItem)
+    $null = $contextMenu.Items.Add($removeMenuItem)
     $newPanel.ContextMenu = $contextMenu
-    # Insert the new panel at the end but before the button (if button is in MainPanel)
+
+    return $newPanel
+}
+
+# Add the click event handler
+$insertButton.Add_Click({
+    $newPanel = Add-EncounterPanel
     $insertIndex = $mainPanel.Children.Count - 1
     $mainPanel.Children.Insert($insertIndex, $newPanel)
     Set-AlternateShading $mainPanel $script:highlightIndex
 
     #only allow Initiative to be float values
+    $initiativeValue = $newPanel.Children[0].Children[1]
     $initiativeValue.Add_PreviewTextInput({
         param($sourceObj, $e)
         # Only allow digits and a single period
@@ -161,8 +198,8 @@ $sortMenuItem.Add_Click({
     }
     # Sort panels by initiativeValue (ascending because insertion will reverse order)
     $sortedPanels = $panels | Sort-Object {
-        $col1Panel = $_.Children[0]
-        $initiativeValue = $col1Panel.Children[1]
+        $initiativePanel = $_.Children[0]
+        $initiativeValue = $initiativePanel.Children[1]
         [float]$initiativeValue.Text
     }
     # Remove all panels from MainPanel
@@ -202,10 +239,14 @@ $exportMenuItem.Add_Click({
         if ($child -is [System.Windows.Controls.Grid]) {
             $initiative = $child.Children[0].Children[1].Text
             $name = $child.Children[1].Text
-            $conditions = $child.Children[2].Text
+            $currentHp = $child.Children[2].Children[0].Text
+            $totalHp = $child.Children[2].Children[1].Text
+            $conditions = $child.Children[3].Children[0].Text
             $encounter += [PSCustomObject]@{
                 Initiative = $initiative
                 Name = $name
+                CurrentHP = $currentHp
+                TotalHP = $totalHp
                 Conditions = $conditions
             }
         }
@@ -260,76 +301,13 @@ $importMenuItem.Add_Click({
         }
 
         # Add imported panels
+        $insertIndex = $mainPanel.Children.Count - 1
         foreach ($entry in $encounter) {
-            $newPanel = New-Object System.Windows.Controls.Grid
-            $newPanel.Margin = [System.Windows.Thickness]::new(0,0,0,10)
-            $newPanel.HorizontalAlignment = "Stretch"
-            $newPanel.Width = [double]::NaN
-            $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
-            $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
-            $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
-            $newPanel.ColumnDefinitions[0].Width = [System.Windows.GridLength]::Auto
-            $newPanel.ColumnDefinitions[1].Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
-            $newPanel.ColumnDefinitions[2].Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star
-)
-
-            # First column: Initiative value with label above
-            $col1Panel = New-Object System.Windows.Controls.StackPanel
-            $col1Panel.Orientation = "Vertical"
-            $initiativeLabel = New-Object System.Windows.Controls.Label
-            $initiativeLabel.Content = "Initiative"
-            $initiativeLabel.Background="#333"
-            $initiativeLabel.Foreground="#EEE"
-            $initiativeLabel.VerticalAlignment = "Center"
-            $col1Panel.Children.Add($initiativeLabel)
-            $initiativeValue = New-Object System.Windows.Controls.TextBox
-            $initiativeValue.Width = 50
-            $initiativeValue.Margin = [System.Windows.Thickness]::new(0,5,0,0)
-            $initiativeValue.Text = "$($entry.Initiative)"
-            $initiativeValue.TextAlignment = "Center"
-            $col1Panel.Children.Add($initiativeValue)
-            [System.Windows.Controls.Grid]::SetColumn($col1Panel, 0)
-
-            # Second column: Character name textbox
-            $characterNameBox = New-Object System.Windows.Controls.TextBox
-            $characterNameBox.Width = 150
-            $characterNameBox.Background = $null
-            $characterNameBox.Foreground = "#00ff00"
-            $characterNameBox.FontSize = 24
-            $characterNameBox.VerticalContentAlignment = "Center"
-            $characterNameBox.Margin = [System.Windows.Thickness]::new(5,0,0,0)
-            $characterNameBox.Text = "$($entry.Name)"
-            [System.Windows.Controls.Grid]::SetColumn($characterNameBox, 1)
-
-            # Third column: label "Conditions" at the top
-            $col3Panel = New-Object System.Windows.Controls.StackPanel
-            $col3Panel.Orientation = "Vertical"
-            $conditionsLabel = New-Object System.Windows.Controls.Label
-            $conditionsLabel.Content = "Conditions"
-            $conditionsLabel.Background="#333"
-            $conditionsLabel.Foreground="#EEE"
-            $conditionsLabel.VerticalAlignment = "Center"
-            $col3Panel.Children.Add($conditionsLabel)
-            [System.Windows.Controls.Grid]::SetColumn($col3Panel, 2)
-            $newPanel.Children.Add($col1Panel)
-            $newPanel.Children.Add($characterNameBox)
-            $newPanel.Children.Add($col3Panel)
-            # Add right-click menu to remove panel
-            $contextMenu = New-Object System.Windows.Controls.ContextMenu
-            $removeMenuItem = New-Object System.Windows.Controls.MenuItem
-            $removeMenuItem.Header = "Remove"
-            $removeMenuItem.Add_Click({
-                param($sourceObj, $e)
-                $parentPanel = $sourceObj.Parent.PlacementTarget
-                $mainPanel.Children.Remove($parentPanel)
-                Set-AlternateShading $mainPanel $script:highlightIndex
-            })
-            $contextMenu.Items.Add($removeMenuItem)
-            $newPanel.ContextMenu = $contextMenu
-            # Insert the new panel at the end but before the button (if button is in MainPanel)
-            $insertIndex = $mainPanel.Children.Count - 1
+            $newPanel = Add-EncounterPanel $entry.Initiative $entry.Name $entry.Conditions $entry.CurrentHP $entry.TotalHP
             $mainPanel.Children.Insert($insertIndex, $newPanel)
+            $insertIndex++
         }
+        # Redraw current turn highlight
         Set-AlternateShading $mainPanel $script:highlightIndex
     }
 })
