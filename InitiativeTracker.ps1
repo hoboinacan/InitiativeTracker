@@ -288,8 +288,12 @@ function Add-EncounterPanel {
     $removeMenuItem.Add_Click({
         param($sourceObj, $e)
         $parentPanel = $sourceObj.Parent.PlacementTarget
-        $mainPanel.Children.Remove($parentPanel)
-        Set-AlternateShading $mainPanel $script:highlightIndex
+        $name = $parentPanel.Children[1].Text
+        $result = [System.Windows.MessageBox]::Show("Are you sure you want to delete '$name'?", "Confirm Deletion", "YesNo", "Warning")
+        if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
+            $mainPanel.Children.Remove($parentPanel)
+            Set-AlternateShading $mainPanel $script:highlightIndex
+        }
     })
     $null = $contextMenu.Items.Add($removeMenuItem)
     $newPanel.ContextMenu = $contextMenu
