@@ -12,7 +12,14 @@
             <MenuItem Header="File" Background="#333" Foreground="#EEE">
                 <MenuItem Name="ExportMenuItem" Header="Export Encounter" Background="#333" Foreground="#EEE"/>
                 <MenuItem Name="ImportMenuItem" Header="Import Encounter" Background="#333" Foreground="#EEE"/>
-                <MenuItem Name="SortMenuItem" Header="Sort Encounter" Background="#333" Foreground="#EEE"/>
+            </MenuItem>
+            <MenuItem Header="Players" Background="#333" Foreground="#EEE">
+                <MenuItem Name="EditPlayers" Header="Edit Players" Background="#333" Foreground="#EEE"/>
+                <MenuItem Name="AddPlayers" Header="Add Players" Background="#333" Foreground="#EEE"/>
+            </MenuItem>                
+            <MenuItem Header="Sort" Background="#333" Foreground="#EEE">
+                <MenuItem Name="SortAscMenuItem" Header="Ascending" Background="#333" Foreground="#EEE"/>
+                <MenuItem Name="SortDescMenuItem" Header="Descending" Background="#333" Foreground="#EEE"/>
             </MenuItem>
         </Menu>
         <Button Name="NextRoundButton" Grid.Row="1" Content="Next Turn"

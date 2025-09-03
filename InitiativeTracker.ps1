@@ -343,28 +343,48 @@ $insertButton.Add_Click({
 })
 
 # Get the SortMenuItem from XAML
-$sortMenuItem = $window.FindName("SortMenuItem")
+$sortAscMenuItem = $window.FindName("SortAscMenuItem")
+$sortDescMenuItem = $window.FindName("SortDescMenuItem")
 
-# Add click event to SortMenuItem to sort MainPanel children by initiativeValue (descending)
-$sortMenuItem.Add_Click({
-    # Get all panels except the InsertButton
+# Add click event to SortAscMenuItem to sort MainPanel children by initiativeValue (ascending)
+$sortAscMenuItem.Add_Click({
     $panels = @()
     foreach ($child in $mainPanel.Children) {
         if ($child -is [System.Windows.Controls.Grid]) {
             $panels += $child
         }
     }
-    # Sort panels by initiativeValue (ascending because insertion will reverse order)
+    $sortedPanels = $panels | Sort-Object {
+        $initiativePanel = $_.Children[0]
+        $initiativeValue = $initiativePanel.Children[1]
+        -[float]$initiativeValue.Text
+    }
+    foreach ($panel in $panels) {
+        $mainPanel.Children.Remove($panel)
+    }
+    $insertIndex = $mainPanel.Children.Count - 1
+    foreach ($panel in $sortedPanels) {
+        $mainPanel.Children.Insert($insertIndex, $panel)
+    }
+    Set-AlternateShading $mainPanel $script:highlightIndex
+})
+
+# Add click event to SortDescMenuItem to sort MainPanel children by initiativeValue (descending)
+$sortDescMenuItem.Add_Click({
+    $panels = @()
+    foreach ($child in $mainPanel.Children) {
+        if ($child -is [System.Windows.Controls.Grid]) {
+            $panels += $child
+        }
+    }
     $sortedPanels = $panels | Sort-Object {
         $initiativePanel = $_.Children[0]
         $initiativeValue = $initiativePanel.Children[1]
         [float]$initiativeValue.Text
     }
-    # Remove all panels from MainPanel
     foreach ($panel in $panels) {
         $mainPanel.Children.Remove($panel)
     }
-    # Re-insert sorted panels before the InsertButton
     $insertIndex = $mainPanel.Children.Count - 1
     foreach ($panel in $sortedPanels) {
         $mainPanel.Children.Insert($insertIndex, $panel)
@@ -420,12 +440,13 @@ $exportMenuItem.Add_Click({
     $saveFileDialog.InitialDirectory = "$PSScriptRoot/encounters"
     $saveFileDialog.Title = "Export Encounter"
     $saveFileDialog.FileName = "encounter_export.json"
-    [void]$saveFileDialog.ShowDialog()
+    $dialogResult = $saveFileDialog.ShowDialog()
     $filePath = $saveFileDialog.FileName
-    if (![string]::IsNullOrWhiteSpace($filePath)) {
-        Set-Content -Path $filePath -Value $json
-        [System.Windows.MessageBox]::Show("Encounter exported to $filePath")
+    if ($dialogResult -ne [System.Windows.Forms.DialogResult]::OK -or [string]::IsNullOrWhiteSpace($filePath)) {
+        return
     }
+    Set-Content -Path $filePath -Value $json
+    [System.Windows.MessageBox]::Show("Encounter exported to $filePath")
 })
 
 # Get the ImportMenuItem from XAML
@@ -469,6 +490,180 @@ $importMenuItem.Add_Click({
         # Redraw current turn highlight
         Set-AlternateShading $mainPanel $script:highlightIndex
     }
+})
+
+# Players list storage and persistence
+$playersFile = Join-Path $PSScriptRoot 'players\player_cache.json'
+# Player data structure: @{ Name = ..., Playing = $false }
+if (Test-Path $playersFile) {
+    try {
+        $loadedPlayers = Get-Content $playersFile -Raw | ConvertFrom-Json
+        $script:players = New-Object System.Collections.ArrayList
+        foreach ($p in $loadedPlayers) {
+            if ($p -is [string]) {
+                $null = $script:players.Add([PSCustomObject]@{ Name = $p; Playing = $false })
+            } elseif ($p.PSObject.Properties["Name"] -and $p.PSObject.Properties["Playing"]) {
+                $null = $script:players.Add([PSCustomObject]@{ Name = $p.Name; Playing = $p.Playing })
+            } else {
+                $null = $script:players.Add([PSCustomObject]@{ Name = $p; Playing = $false })
+            }
+        }
+    } catch {}
+} else {
+    $script:players = New-Object System.Collections.ArrayList
+}
+
+function Save-PlayersList {
+    $null = New-Item -ItemType Directory -Path (Split-Path $playersFile) -Force
+    Set-Content -Path $playersFile -Value ($script:players.ToArray() | ConvertTo-Json -Depth 2)
+}
+
+# Get EditPlayers menu item
+$editPlayersMenuItem = $window.FindName("EditPlayers")
+
+# Add click event to EditPlayers to show player management UI
+$editPlayersMenuItem.Add_Click({
+    # Hide main UI controls
+    $mainPanel.Visibility = "Collapsed"
+    $nextRoundButton.Visibility = "Collapsed"
+
+    # Create player edit panel
+    $playerPanel = New-Object System.Windows.Controls.StackPanel
+    $playerPanel.Name = "PlayerPanel"
+    $playerPanel.Margin = [System.Windows.Thickness]::new(20)
+    $playerPanel.Background = "#222"
+
+    $title = New-Object System.Windows.Controls.Label
+    $title.Content = "Edit Players"
+    $title.FontSize = 20
+    $title.Foreground = "#EEE"
+    $title.HorizontalAlignment = "Center"
+    $null = $playerPanel.Children.Add($title)
+
+    $playerListView = New-Object System.Windows.Controls.ListView
+    $playerListView.Width = 250
+    $playerListView.Height = 170
+    $playerListView.Margin = [System.Windows.Thickness]::new(0,10,0,10)
+    $playerListView.ItemsSource = $script:players
+    $gridView = New-Object System.Windows.Controls.GridView
+    $playerListView.View = $gridView
+    $nameColumn = New-Object System.Windows.Controls.GridViewColumn
+    $nameColumn.Header = "Player Name"
+    $nameColumn.DisplayMemberBinding = (New-Object System.Windows.Data.Binding "Name")
+    $nameColumn.Width = 180
+    $gridView.Columns.Add($nameColumn)
+    $playingColumn = New-Object System.Windows.Controls.GridViewColumn
+    $playingColumn.Header = "Playing"
+    $playingTemplate = New-Object System.Windows.DataTemplate
+    $factory = New-Object System.Windows.FrameworkElementFactory ([System.Windows.Controls.CheckBox])
+    $factory.SetBinding([System.Windows.Controls.CheckBox]::IsCheckedProperty, (New-Object System.Windows.Data.Binding "Playing"))
+    $factory.AddHandler([System.Windows.Controls.CheckBox]::CheckedEvent, [System.Windows.RoutedEventHandler]{ Save-PlayersList })
+    $factory.AddHandler([System.Windows.Controls.CheckBox]::UncheckedEvent, [System.Windows.RoutedEventHandler]{ Save-PlayersList })
+    $playingTemplate.VisualTree = $factory
+    $playingColumn.CellTemplate = $playingTemplate
+    $gridView.Columns.Add($playingColumn)
+    $null = $playerPanel.Children.Add($playerListView)
+
+    $inputPanel = New-Object System.Windows.Controls.StackPanel
+    $inputPanel.Orientation = "Horizontal"
+    $inputPanel.Margin = [System.Windows.Thickness]::new(0,0,0,10)
+    $inputPanel.HorizontalAlignment = "Center"
+    $playerNameBox = New-Object System.Windows.Controls.TextBox
+    $playerNameBox.Width = 120
+    $playerNameBox.Margin = [System.Windows.Thickness]::new(0,0,10,0)
+    $addPlayerButton = New-Object System.Windows.Controls.Button
+    $addPlayerButton.Content = "Add"
+    $addPlayerButton.Width = 50
+    $addPlayerButton.Add_Click({
+        param($sourceObj, $e)
+        $parentPanel = $sourceObj.Parent
+        $nameBox = $parentPanel.Children[0]
+        $name = $nameBox.Text.Trim()
+        $playerPanel = $parentPanel.Parent
+        $playerListView = $playerPanel.Children[1]
+        if ($name -and (-not ($script:players | Where-Object { $_.Name -eq $name }))) {
+            $null = $script:players.Add([PSCustomObject]@{ Name = $name; Playing = $false })
+            $playerListView.ItemsSource = $null
+            $playerListView.ItemsSource = $script:players
+            $nameBox.Text = ""
+            Save-PlayersList
+        }
+    })
+    $null = $inputPanel.Children.Add($playerNameBox)
+    $null = $inputPanel.Children.Add($addPlayerButton)
+    $null = $playerPanel.Children.Add($inputPanel)
+
+    $removePlayerButton = New-Object System.Windows.Controls.Button
+    $removePlayerButton.Content = "Remove Selected"
+    $removePlayerButton.Width = 120
+    $removePlayerButton.Margin = [System.Windows.Thickness]::new(0,0,0,10)
+    $removePlayerButton.Add_Click({
+        param($sourceObj, $e)
+        $playerPanel = $sourceObj.Parent
+        $playerListView = $playerPanel.Children[1]
+        $selected = $playerListView.SelectedItems
+        if ($selected -and $selected.Count -gt 0) {
+            # Copy to array to avoid modifying collection while iterating
+            $toRemove = @($selected)
+            foreach ($s in $toRemove) {
+                $script:players.Remove($s)
+            }
+            $playerListView.ItemsSource = $null
+            $playerListView.ItemsSource = $script:players
+            Save-PlayersList
+        }
+    })
+    $null = $playerPanel.Children.Add($removePlayerButton)
+
+    $doneButton = New-Object System.Windows.Controls.Button
+    $doneButton.Content = "Done"
+    $doneButton.Width = 80
+    $doneButton.Margin = [System.Windows.Thickness]::new(0,10,0,0)
+    $doneButton.Add_Click({
+        param($sourceObj, $e)
+        $playerPanel = $sourceObj.Parent
+        $playerPanel.Visibility = "Collapsed"
+        $mainPanel.Visibility = "Visible"
+        $nextRoundButton.Visibility = "Visible"
+    })
+    $null = $playerPanel.Children.Add($doneButton)
+
+    $playerNameBox.Add_KeyDown({
+        param($sourceObj, $e)
+        $parentPanel = $sourceObj.Parent.Parent
+        $addPlayerButton = $parentPanel.Children[2].Children[1]
+        if ($e.Key -eq [System.Windows.Input.Key]::Enter) {
+            $addPlayerButton.RaiseEvent([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Button]::ClickEvent))
+        }
+    })
+
+    $window.Content.Children.Add($playerPanel)
+})
+
+# Get AddPlayers menu item
+$addPlayersMenuItem = $window.FindName("AddPlayers")
+
+# Add click event to AddPlayers to add entries to MainPanel for each player in the players list
+$addPlayersMenuItem.Add_Click({
+    foreach ($player in $script:players) {
+        # Check if player already exists in MainPanel
+        $exists = $false
+        foreach ($child in $mainPanel.Children) {
+            if ($child -is [System.Windows.Controls.Grid]) {
+                $nameBox = $child.Children[1]
+                if ($nameBox.Text -eq $player) {
+                    $exists = $true
+                    break
+                }
+            }
+        }
+        if (-not $exists) {
+            $newPanel = Add-EncounterPanel "0" $player "" "" ""
+            $insertIndex = $mainPanel.Children.Count - 1
+            $mainPanel.Children.Insert($insertIndex, $newPanel)
+        }
+    }
+    Set-AlternateShading $mainPanel $script:highlightIndex
 })
 
 # Show the window
