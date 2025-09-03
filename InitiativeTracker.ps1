@@ -56,10 +56,10 @@ function Set-AlternateShading {
 function Add-EncounterPanel {
     param(
         [string]$initiative = "0",
-        [string]$name = "",
+        [string]$name = "Name",
         [string]$conditions = "",
-        [string]$currentHp = "Current HP",
-        [string]$totalHp = "Total HP"
+        [string]$currentHp = "CurHP",
+        [string]$totalHp = "TotHP"
     )
     $newPanel = New-Object System.Windows.Controls.Grid
     $newPanel.Margin = [System.Windows.Thickness]::new(0,0,0,10)
@@ -71,8 +71,8 @@ function Add-EncounterPanel {
     $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition)) # HP
     $newPanel.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition)) # Conditions
     $newPanel.ColumnDefinitions[0].Width = [System.Windows.GridLength]::Auto
-    $newPanel.ColumnDefinitions[1].Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
-    $newPanel.ColumnDefinitions[2].Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+    $newPanel.ColumnDefinitions[1].Width = [System.Windows.GridLength]::Auto
+    $newPanel.ColumnDefinitions[2].Width = [System.Windows.GridLength]::Auto
     $newPanel.ColumnDefinitions[3].Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
 
     # Initiative column
@@ -85,9 +85,21 @@ function Add-EncounterPanel {
     $initiativeLabel.VerticalAlignment = "Center"
     $initiativeValue = New-Object System.Windows.Controls.TextBox
     $initiativeValue.Width = 50
-    $initiativeValue.Margin = [System.Windows.Thickness]::new(0,5,0,0)
+    $initiativeValue.Margin = [System.Windows.Thickness]::new(0,0,0,0)
     $initiativeValue.Text = $initiative
     $initiativeValue.TextAlignment = "Center"
+    $initiativeValue.Add_GotFocus({
+        param($sourceObj, $e)
+        $sourceObj.SelectAll()
+    })
+    $initiativeValue.Add_PreviewMouseLeftButtonDown({
+        param($sourceObj, $e)
+        if (-not $sourceObj.IsKeyboardFocusWithin) {
+            $e.Handled = $true
+            $sourceObj.Focus()
+            $sourceObj.SelectAll()
+        }
+    })
     $null = $initiativePanel.Children.Add($initiativeLabel)
     $null = $initiativePanel.Children.Add($initiativeValue)
     [System.Windows.Controls.Grid]::SetColumn($initiativePanel, 0)
@@ -101,21 +113,156 @@ function Add-EncounterPanel {
     $characterNameBox.VerticalContentAlignment = "Center"
     $characterNameBox.Margin = [System.Windows.Thickness]::new(5,0,0,0)
     $characterNameBox.Text = $name
+    $characterNameBox.Add_GotFocus({
+        param($sourceObj, $e)
+        $sourceObj.SelectAll()
+    })
+    $characterNameBox.Add_PreviewMouseLeftButtonDown({
+        param($sourceObj, $e)
+        if (-not $sourceObj.IsKeyboardFocusWithin) {
+            $e.Handled = $true
+            $sourceObj.Focus()
+            $sourceObj.SelectAll()
+        }
+    })
     [System.Windows.Controls.Grid]::SetColumn($characterNameBox, 1)
 
     # HP column
     $hpPanel = New-Object System.Windows.Controls.StackPanel
     $hpPanel.Orientation = "Vertical"
     $hpPanel.Margin = [System.Windows.Thickness]::new(5,0,0,0)
+
+    # Current HP with left-to-right: minus, textbox, plus
+    $currentHpPanel = New-Object System.Windows.Controls.StackPanel
+    $currentHpPanel.Orientation = "Horizontal"
+    $downCurrentHp = New-Object System.Windows.Controls.Button
+    $downCurrentHp.Content = "-"
+    $downCurrentHp.Width = 20
+    $downCurrentHp.Height = 20
+    $downCurrentHp.Margin = [System.Windows.Thickness]::new(0,0,2,0)
+    $downCurrentHp.Add_Click({
+        param($sourceObj, $e)
+        $parentPanel = $sourceObj.Parent
+        $hpBox = $parentPanel.Children[1]
+        $val = 0
+        if ($hpBox.Text -match '^[0-9]+$') { $val = [int]$hpBox.Text }
+        if ($val -gt 0) { $hpBox.Text = ($val - 1).ToString() }
+    })
     $currentHpBox = New-Object System.Windows.Controls.TextBox
-    $currentHpBox.Width = 60
-    $currentHpBox.Margin = [System.Windows.Thickness]::new(0,0,0,2)
+    $currentHpBox.Width = 40
     $currentHpBox.Text = $currentHp
+    $currentHpBox.MaxLength = 5
+    $currentHpBox.Add_GotFocus({
+        param($sourceObj, $e)
+        $sourceObj.SelectAll()
+    })
+    $currentHpBox.Add_PreviewMouseLeftButtonDown({
+        param($sourceObj, $e)
+        if (-not $sourceObj.IsKeyboardFocusWithin) {
+            $e.Handled = $true
+            $sourceObj.Focus()
+            $sourceObj.SelectAll()
+        }
+    })
+    $currentHpBox.Add_PreviewTextInput({
+        param($sourceObj, $e)
+        if ($e.Text -notmatch '^[0-9]$') {
+            $e.Handled = $true
+        }
+    })
+    $currentHpBox.Add_TextChanged({
+        param($sourceObj, $e)
+        $text = $sourceObj.Text -replace '[^0-9]', ''
+        if ($sourceObj.Text -ne $text) {
+            $sourceObj.Text = $text
+            $sourceObj.SelectionStart = $sourceObj.Text.Length
+        }
+    })
+    $upCurrentHp = New-Object System.Windows.Controls.Button
+    $upCurrentHp.Content = "+"
+    $upCurrentHp.Width = 20
+    $upCurrentHp.Height = 20
+    $upCurrentHp.Margin = [System.Windows.Thickness]::new(2,0,0,0)
+    $upCurrentHp.Add_Click({
+        param($sourceObj, $e)
+        $parentPanel = $sourceObj.Parent
+        $hpBox = $parentPanel.Children[1]
+        $val = 0
+        if ($hpBox.Text -match '^[0-9]+$') { $val = [int]$hpBox.Text }
+        $hpBox.Text = ($val + 1).ToString()
+    })
+    $null = $currentHpPanel.Children.Add($downCurrentHp)
+    $null = $currentHpPanel.Children.Add($currentHpBox)
+    $null = $currentHpPanel.Children.Add($upCurrentHp)
+    $null = $hpPanel.Children.Add($currentHpPanel)
+    # Add horizontal line below CurrentHP
+    $hpSeparator = New-Object System.Windows.Controls.Separator
+    $hpSeparator.Margin = [System.Windows.Thickness]::new(0,2,0,2)
+    $hpSeparator.Background = "#888"
+    $null = $hpPanel.Children.Add($hpSeparator)
+    # Total HP with left-to-right: minus, textbox, plus
+    $totalHpPanel = New-Object System.Windows.Controls.StackPanel
+    $totalHpPanel.Orientation = "Horizontal"
+    $downTotalHp = New-Object System.Windows.Controls.Button
+    $downTotalHp.Content = "-"
+    $downTotalHp.Width = 20
+    $downTotalHp.Height = 20
+    $downTotalHp.Margin = [System.Windows.Thickness]::new(0,0,2,0)
+    $downTotalHp.Add_Click({
+        param($sourceObj, $e)
+        $parentPanel = $sourceObj.Parent
+        $hpBox = $parentPanel.Children[1]
+        $val = 0
+        if ($hpBox.Text -match '^[0-9]+$') { $val = [int]$hpBox.Text }
+        if ($val -gt 0) { $hpBox.Text = ($val - 1).ToString() }
+    })
     $totalHpBox = New-Object System.Windows.Controls.TextBox
-    $totalHpBox.Width = 60
+    $totalHpBox.Width = 40
     $totalHpBox.Text = $totalHp
-    $null = $hpPanel.Children.Add($currentHpBox)
-    $null = $hpPanel.Children.Add($totalHpBox)
+    $totalHpBox.MaxLength = 5
+    $totalHpBox.Add_GotFocus({
+        param($sourceObj, $e)
+        $sourceObj.SelectAll()
+    })
+    $totalHpBox.Add_PreviewMouseLeftButtonDown({
+        param($sourceObj, $e)
+        if (-not $sourceObj.IsKeyboardFocusWithin) {
+            $e.Handled = $true
+            $sourceObj.Focus()
+            $sourceObj.SelectAll()
+        }
+    })
+    $totalHpBox.Add_PreviewTextInput({
+        param($sourceObj, $e)
+        if ($e.Text -notmatch '^[0-9]$') {
+            $e.Handled = $true
+        }
+    })
+    $totalHpBox.Add_TextChanged({
+        param($sourceObj, $e)
+        $text = $sourceObj.Text -replace '[^0-9]', ''
+        if ($sourceObj.Text -ne $text) {
+            $sourceObj.Text = $text
+            $sourceObj.SelectionStart = $sourceObj.Text.Length
+        }
+    })
+    $upTotalHp = New-Object System.Windows.Controls.Button
+    $upTotalHp.Content = "+"
+    $upTotalHp.Width = 20
+    $upTotalHp.Height = 20
+    $upTotalHp.Margin = [System.Windows.Thickness]::new(2,0,0,0)
+    $upTotalHp.Add_Click({
+        param($sourceObj, $e)
+        $parentPanel = $sourceObj.Parent
+        $hpBox = $parentPanel.Children[1]
+        $val = 0
+        if ($hpBox.Text -match '^[0-9]+$') { $val = [int]$hpBox.Text }
+        $hpBox.Text = ($val + 1).ToString()
+    })
+    $null = $totalHpPanel.Children.Add($downTotalHp)
+    $null = $totalHpPanel.Children.Add($totalHpBox)
+    $null = $totalHpPanel.Children.Add($upTotalHp)
+    $null = $hpPanel.Children.Add($totalHpPanel)
     [System.Windows.Controls.Grid]::SetColumn($hpPanel, 2)
 
     # Conditions column
@@ -161,8 +308,10 @@ $insertButton.Add_Click({
     $initiativeValue = $newPanel.Children[0].Children[1]
     $initiativeValue.Add_PreviewTextInput({
         param($sourceObj, $e)
-        # Only allow digits and a single period
-        if ($e.Text -notmatch '^[0-9.]$') {
+        # Only allow digits, a single period, and a single leading minus
+        if ($e.Text -notmatch '^[0-9.-]$') {
+            $e.Handled = $true
+        } elseif ($e.Text -eq '-' -and ($sourceObj.SelectionStart -ne 0 -or $sourceObj.Text.Contains('-'))) {
             $e.Handled = $true
         } elseif ($e.Text -eq '.' -and $sourceObj.Text.Contains('.')) {
             $e.Handled = $true
@@ -170,13 +319,18 @@ $insertButton.Add_Click({
     })
     $initiativeValue.Add_TextChanged({
         param($sourceObj, $e)
-        # Remove extra periods and non-digit characters
+        # Remove extra periods, non-digit characters, and ensure only one leading minus
         $text = $sourceObj.Text
         $firstPeriod = $text.IndexOf('.')
         if ($firstPeriod -ge 0) {
             $text = $text.Substring(0, $firstPeriod + 1) + ($text.Substring($firstPeriod + 1) -replace '\.', '')
         }
-        $text = $text -replace '[^0-9.]', ''
+        $text = $text -replace '[^0-9.-]', ''
+        if ($text.StartsWith('-')) {
+            $text = '-' + ($text.Substring(1) -replace '-', '')
+        } else {
+            $text = $text -replace '-', ''
+        }
         if ($sourceObj.Text -ne $text) {
             $sourceObj.Text = $text
             $sourceObj.SelectionStart = $sourceObj.Text.Length
@@ -239,8 +393,9 @@ $exportMenuItem.Add_Click({
         if ($child -is [System.Windows.Controls.Grid]) {
             $initiative = $child.Children[0].Children[1].Text
             $name = $child.Children[1].Text
-            $currentHp = $child.Children[2].Children[0].Text
-            $totalHp = $child.Children[2].Children[1].Text
+            # HP column: get TextBox from inside StackPanels (new layout)
+            $currentHp = $child.Children[2].Children[0].Children[1].Text
+            $totalHp = $child.Children[2].Children[2].Children[1].Text
             $conditions = $child.Children[3].Children[0].Text
             $encounter += [PSCustomObject]@{
                 Initiative = $initiative
