@@ -645,20 +645,35 @@ $addPlayersMenuItem = $window.FindName("AddPlayers")
 
 # Add click event to AddPlayers to add entries to MainPanel for each player in the players list
 $addPlayersMenuItem.Add_Click({
+    # Remove panels for players whose Playing value is false
+    $toRemove = @()
+    foreach ($child in $mainPanel.Children) {
+        if ($child -is [System.Windows.Controls.Grid]) {
+            $nameBox = $child.Children[1]
+            $player = $script:players | Where-Object { $_.Name -eq $nameBox.Text }
+            if ($player -and -not $player.Playing) {
+                $toRemove += $child
+            }
+        }
+    }
+    foreach ($panel in $toRemove) {
+        $mainPanel.Children.Remove($panel)
+    }
     foreach ($player in $script:players) {
+        if (-not $player.Playing) { continue }
         # Check if player already exists in MainPanel
         $exists = $false
         foreach ($child in $mainPanel.Children) {
             if ($child -is [System.Windows.Controls.Grid]) {
                 $nameBox = $child.Children[1]
-                if ($nameBox.Text -eq $player) {
+                if ($nameBox.Text -eq $player.Name) {
                     $exists = $true
                     break
                 }
             }
         }
         if (-not $exists) {
-            $newPanel = Add-EncounterPanel "0" $player "" "" ""
+            $newPanel = Add-EncounterPanel "0" $player.Name "" "" ""
             $insertIndex = $mainPanel.Children.Count - 1
             $mainPanel.Children.Insert($insertIndex, $newPanel)
         }
