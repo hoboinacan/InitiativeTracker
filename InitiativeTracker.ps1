@@ -820,7 +820,7 @@ $rollNpcInitMenuItem.Add_Click({
                             $initiativePanel = $panel.Children[0]
                             if ($initiativePanel.Children.Count -ge 2) {
                                 $initiativeValue = $initiativePanel.Children[1]
-                                $roll = (Get-Random -Minimum 1 -Maximum 20) + $modifier
+                                $roll = (Get-Random -Minimum 1 -Maximum 21) + $modifier
                                 $initiativeValue.Text = $roll.ToString()
                             }
                         }
@@ -850,6 +850,116 @@ $rollNpcInitMenuItem.Add_Click({
 
     $npcWindow.Content = $npcPanel
     $npcWindow.ShowDialog() | Out-Null
+})
+
+# Get OpenDiceRoller menu item from XAML
+$OpenDiceRollerMenuItem = $window.FindName("OpenDiceRoller")
+$OpenDiceRollerMenuItem.Add_Click({
+    # Create pop-out window
+    $diceWindow = New-Object System.Windows.Window
+    $diceWindow.Title = "Dice Roller"
+    $diceWindow.Width = 320
+    $diceWindow.Height = 300
+    $diceWindow.WindowStartupLocation = "CenterScreen"
+    $diceWindow.Background = [System.Windows.Media.Brushes]::Black
+    $dicePanel = New-Object System.Windows.Controls.StackPanel
+    $dicePanel.Margin = [System.Windows.Thickness]::new(20)
+    $dicePanel.Background = "#222"
+
+    # Number of dice
+    $numDiceLabel = New-Object System.Windows.Controls.Label
+    $numDiceLabel.Content = "Number of Dice:"
+    $numDiceLabel.Foreground = "#EEE"
+    $numDiceLabel.HorizontalAlignment = "Center"
+    $numDiceBox = New-Object System.Windows.Controls.TextBox
+    $numDiceBox.Width = 60
+    $numDiceBox.Text = "1"
+    $numDiceBox.TextAlignment = "Center"
+    $numDiceBox.Margin = [System.Windows.Thickness]::new(0,0,0,10)
+    $numDiceBox.Background = "#333"
+    $numDiceBox.Foreground = "#EEE"
+    $numDiceBox.BorderBrush = "#555"
+    $numDiceBox.Add_PreviewTextInput({
+        param($src, $evt)
+        if ($evt.Text -notmatch '^[0-9]$') {
+            $evt.Handled = $true
+        }
+    })
+    $numDiceBox.Add_TextChanged({
+        param($src, $evt)
+        $text = $src.Text -replace '[^0-9]', ''
+        if ($src.Text -ne $text) {
+            $src.Text = $text
+            $src.SelectionStart = $src.Text.Length
+        }
+    })
+
+    # Sides of dice
+    $sidesLabel = New-Object System.Windows.Controls.Label
+    $sidesLabel.Content = "Sides of Dice:"
+    $sidesLabel.Foreground = "#EEE"
+    $sidesLabel.HorizontalAlignment = "Center"
+    $sidesCombo = New-Object System.Windows.Controls.ComboBox
+    $sidesCombo.Width = 80
+    $sidesCombo.Margin = [System.Windows.Thickness]::new(0,0,0,10)
+    $sidesCombo.Background = "#333"
+    $sidesCombo.Foreground = "#333"
+    $sidesCombo.BorderBrush = "#555"
+    $sidesCombo.HorizontalContentAlignment = "Center"
+    $diceOptions = @(4, 6, 8, 10, 12, 20, 100)
+    foreach ($opt in $diceOptions) { $null = $sidesCombo.Items.Add($opt) }
+    $sidesCombo.SelectedIndex = 1 # Default to d6
+
+    # Modifier
+    $modLabel = New-Object System.Windows.Controls.Label
+    $modLabel.Content = "Modifier:"
+    $modLabel.Foreground = "#EEE"
+    $modLabel.HorizontalAlignment = "Center"
+    $modBox = New-Object System.Windows.Controls.TextBox
+    $modBox.Width = 60
+    $modBox.Text = "0"
+    $modBox.TextAlignment = "Center"
+    $modBox.Margin = [System.Windows.Thickness]::new(0,0,0,10)
+    $modBox.Background = "#333"
+    $modBox.Foreground = "#EEE"
+    $modBox.BorderBrush = "#555"
+
+    # Roll button
+    $rollBtn = New-Object System.Windows.Controls.Button
+    $rollBtn.Content = "Roll"
+    $rollBtn.Width = 80
+    $rollBtn.Margin = [System.Windows.Thickness]::new(0,10,0,0)
+    $rollBtn.HorizontalAlignment = "Center"
+    $rollBtn.Background = "#5555FF"
+    $rollBtn.Foreground = "#EEE"
+    $rollBtn.BorderBrush = "#222"
+    $rollBtn.Add_Click({
+        param($src, $evt)
+        $numDice = 1
+        $sides = 6
+        $modifier = 0
+        if ($numDiceBox.Text -match '^[0-9]+$') { $numDice = [int]$numDiceBox.Text }
+        if ($sidesCombo.SelectedItem) { $sides = [int]$sidesCombo.SelectedItem }
+        if ($modBox.Text -match '^-?[0-9]+$') { $modifier = [int]$modBox.Text }
+        $rolls = @()
+        for ($i = 0; $i -lt $numDice; $i++) {
+            $rolls += (Get-Random -Minimum 1 -Maximum ($sides + 1))
+        }
+        $total = ($rolls | Measure-Object -Sum).Sum + $modifier
+        $msg = "Rolls: " + ($rolls -join ', ') + "`nModifier: $modifier`nTotal: $total"
+        [System.Windows.MessageBox]::Show($msg, "Dice Roll Result")
+    })
+
+    $null = $dicePanel.Children.Add($numDiceLabel)
+    $null = $dicePanel.Children.Add($numDiceBox)
+    $null = $dicePanel.Children.Add($sidesLabel)
+    $null = $dicePanel.Children.Add($sidesCombo)
+    $null = $dicePanel.Children.Add($modLabel)
+    $null = $dicePanel.Children.Add($modBox)
+    $null = $dicePanel.Children.Add($rollBtn)
+
+    $diceWindow.Content = $dicePanel
+    $diceWindow.ShowDialog() | Out-Null
 })
 
 # Add click event to NextRoundButton to highlight the next item in MainPanel
