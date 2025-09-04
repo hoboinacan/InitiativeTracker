@@ -287,13 +287,17 @@ function Add-EncounterPanel {
     $conditionsPanel = New-Object System.Windows.Controls.StackPanel
     $conditionsPanel.Orientation = "Vertical"
     $conditionsPanel.MinWidth = 50
-    $appliedLabel = New-Object System.Windows.Controls.Label
-    $appliedLabel.Content = $conditions
+    $appliedLabel = New-Object System.Windows.Controls.TextBlock
+    $appliedLabel.Text = $conditions
     $appliedLabel.FontSize = 14
-    $appliedLabel.Foreground = "#AAA"
+    $appliedLabel.Foreground = "#EEE"
+    $appliedLabel.FontWeight = "Bold"
     $appliedLabel.Margin = [System.Windows.Thickness]::new(0,2,0,6)
     $appliedLabel.HorizontalAlignment = "Left"
     $appliedLabel.Visibility = [System.Windows.Visibility]::Visible
+    $appliedLabel.MaxWidth = 120
+    $appliedLabel.TextWrapping = [System.Windows.TextWrapping]::Wrap
+    $appliedLabel.TextTrimming = [System.Windows.TextTrimming]::CharacterEllipsis
     $null = $conditionsPanel.Children.Add($appliedLabel)
     [System.Windows.Controls.Grid]::SetColumn($conditionsPanel, 3)
 
@@ -342,7 +346,7 @@ function Add-EncounterPanel {
         $title.Foreground = "#EEE"
         $title.HorizontalAlignment = "Center"
         $null = $editConditionsPanel.Children.Add($title)
-        $currentConditions = $parentPanel.Children[3].Children[0].Content -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+        $currentConditions = $parentPanel.Children[3].Children[0].Text -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
         # Create a grid with 3 columns for checkboxes
         $checkboxGrid = New-Object System.Windows.Controls.Grid
         for ($i = 0; $i -lt 3; $i++) {
@@ -372,6 +376,7 @@ function Add-EncounterPanel {
                     }
                 }
                 $cb.Content = $condName
+                $cb.Foreground = "#EEE"
                 if ($condDesc) { $cb.ToolTip = $condDesc }
                 $cb.IsChecked = $currentConditions -contains $condName
                 $cb.Margin = [System.Windows.Thickness]::new(0,2,0,2)
@@ -398,7 +403,7 @@ function Add-EncounterPanel {
             if ($parentPanel -and $parentPanel.Children.Count -ge 4 -and $parentPanel.Children[3].Children.Count -ge 1) {
                 # Use the appliedConditions label (already created as Children[0] in conditionsPanel)
                 $appliedConditionsLabel = $parentPanel.Children[3].Children[0]
-                $appliedConditionsLabel.Content = ($selected -join ', ')
+                $appliedConditionsLabel.Text = ($selected -join ', ')
                 $parentPanel.Tag = $selected # Save conditions array in Tag property for this panel
             }
             if ($editConditionsPanel -and $editConditionsPanel.PSObject.Properties["Visibility"]) {
