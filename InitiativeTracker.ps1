@@ -874,9 +874,13 @@ $editPlayersMenuItem.Add_Click({
 
     $playerListView = New-Object System.Windows.Controls.ListView
     $playerListView.Width = 250
-    $playerListView.Height = 170
+    $playerListView.MinHeight = 170
+    $playerListView.MaxHeight = 400
     $playerListView.Margin = [System.Windows.Thickness]::new(0,10,0,10)
     $playerListView.ItemsSource = $script:players
+    $playerListView.VerticalAlignment = "Top"
+    $playerListView.SetValue([System.Windows.Controls.ListView]::HeightProperty, [double]::NaN)
+    Resize-WindowToFitContent
     $gridView = New-Object System.Windows.Controls.GridView
     $playerListView.View = $gridView
     $nameColumn = New-Object System.Windows.Controls.GridViewColumn
