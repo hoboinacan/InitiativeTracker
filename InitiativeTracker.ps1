@@ -286,6 +286,7 @@ function Add-EncounterPanel {
     # Conditions column
     $conditionsPanel = New-Object System.Windows.Controls.StackPanel
     $conditionsPanel.Orientation = "Vertical"
+    $conditionsPanel.MinWidth = 50
     $appliedLabel = New-Object System.Windows.Controls.Label
     $appliedLabel.Content = $conditions
     $appliedLabel.FontSize = 14
@@ -418,6 +419,144 @@ function Add-EncounterPanel {
         $window.Content.Children.Add($editConditionsPanel)
     })
     $null = $contextMenu.Items.Add($editConditionsMenuItem)
+    # Add Roll HD menu item
+    $rollHdMenuItem = New-Object System.Windows.Controls.MenuItem
+    $rollHdMenuItem.Header = "Roll Hit Dice"
+    $rollHdMenuItem.Add_Click({
+        param($sourceObj, $e)
+        $parentPanel = $sourceObj.Parent.PlacementTarget
+        # Find the column and index of the panel in initiativeListPanel
+        $panelIndex = -1
+        $colIndex = -1
+        for ($c = 0; $c -lt $initiativeListPanel.Children.Count; $c++) {
+            $col = $initiativeListPanel.Children[$c]
+            if ($col -is [System.Windows.Controls.StackPanel]) {
+                for ($i = 0; $i -lt $col.Children.Count; $i++) {
+                    if ($col.Children[$i] -eq $parentPanel) {
+                        $panelIndex = $i
+                        $colIndex = $c
+                        break
+                    }
+                }
+            }
+            if ($panelIndex -ne -1) { break }
+        }
+        # Create pop-out window
+        $rollWindow = New-Object System.Windows.Window
+        $rollWindow.Title = "Roll Hit Dice"
+        $rollWindow.SizeToContent = "widthAndHeight"
+        $rollWindow.WindowStartupLocation = "CenterScreen"
+        $rollWindow.Background = [System.Windows.Media.Brushes]::Black
+        $rollPanel = New-Object System.Windows.Controls.StackPanel
+        $rollPanel.Margin = [System.Windows.Thickness]::new(20)
+        $rollPanel.Background = "#222"
+        # NumDice
+        $numDiceLabel = New-Object System.Windows.Controls.Label
+        $numDiceLabel.Content = "Number of Dice:"
+        $numDiceLabel.Foreground = "#EEE"
+        $numDiceBox = New-Object System.Windows.Controls.TextBox
+        $numDiceBox.Width = 60
+        $numDiceBox.Text = "1"
+        $numDiceBox.Margin = [System.Windows.Thickness]::new(0,0,0,10)
+        $numDiceBox.Background = "#333"
+        $numDiceBox.Foreground = "#EEE"
+        $numDiceBox.BorderBrush = "#555"
+        $numDiceBox.Add_PreviewTextInput({
+            param($src, $evt)
+            if ($evt.Text -notmatch '^[0-9]$') {
+                $evt.Handled = $true
+            }
+        })
+        $numDiceBox.Add_TextChanged({
+            param($src, $evt)
+            $text = $src.Text -replace '[^0-9]', ''
+            if ($src.Text -ne $text) {
+                $src.Text = $text
+                $src.SelectionStart = $src.Text.Length
+            }
+        })
+        # DiceSides
+        $diceSidesLabel = New-Object System.Windows.Controls.Label
+        $diceSidesLabel.Content = "Dice Sides:"
+        $diceSidesLabel.Foreground = "#EEE"
+        $diceSidesCombo = New-Object System.Windows.Controls.ComboBox
+        $diceSidesCombo.Width = 80
+        $diceSidesCombo.Margin = [System.Windows.Thickness]::new(0,0,0,10)
+        $diceSidesCombo.Background = "#333"
+        $diceSidesCombo.Foreground = "#333"
+        $diceSidesCombo.BorderBrush = "#555"
+        $diceOptions = @(4, 6, 8, 10, 12, 20)
+        foreach ($opt in $diceOptions) { $null = $diceSidesCombo.Items.Add($opt) }
+        $diceSidesCombo.SelectedIndex = 1 # Default to d6
+        # Modifier
+        $modifierLabel = New-Object System.Windows.Controls.Label
+        $modifierLabel.Content = "Modifier:"
+        $modifierLabel.Foreground = "#EEE"
+        $modifierBox = New-Object System.Windows.Controls.TextBox
+        $modifierBox.Width = 60
+        $modifierBox.Text = "0"
+        $modifierBox.Margin = [System.Windows.Thickness]::new(0,0,0,10)
+        $modifierBox.Background = "#333"
+        $modifierBox.Foreground = "#EEE"
+        $modifierBox.BorderBrush = "#555"
+        # Roll Button
+        $rollButton = New-Object System.Windows.Controls.Button
+        $rollButton.Content = "Roll"
+        $rollButton.Width = 80
+        $rollButton.Margin = [System.Windows.Thickness]::new(0,10,0,0)
+        $rollButton.HorizontalAlignment = "Center"
+        $rollButton.Background = "#5555FF"
+        $rollButton.Foreground = "#EEE"
+        $rollButton.BorderBrush = "#222"
+        $rollButton.Tag = @{ ColIndex = $colIndex; PanelIndex = $panelIndex }
+        $rollButton.Add_Click({
+            param($src, $evt)
+            $numDice = 1
+            $diceSides = 6
+            $modifier = 0
+            if ($numDiceBox.Text -match '^[0-9]+$') { $numDice = [int]$numDiceBox.Text }
+            if ($diceSidesCombo.SelectedItem) { $diceSides = [int]$diceSidesCombo.SelectedItem }
+            if ($modifierBox.Text -match '^-?[0-9]+$') { $modifier = [int]$modifierBox.Text }
+            $rolls = @()
+            for ($i = 0; $i -lt $numDice; $i++) {
+                $rolls += (Get-Random -Minimum 1 -Maximum ($diceSides + 1))
+            }
+            $total = ($rolls | Measure-Object -Sum).Sum + $modifier
+            $msg = "Rolls: " + ($rolls -join ', ') + "`nModifier: $modifier`nTotal: $total"
+            [System.Windows.MessageBox]::Show($msg, "Roll Result")
+            # Use the passed index to update the correct panel
+            $tag = $src.Tag
+            if ($tag -and $tag.ColIndex -ge 0 -and $tag.PanelIndex -ge 0) {
+                $col = $initiativeListPanel.Children[$tag.ColIndex]
+                $panel = $col.Children[$tag.PanelIndex]
+                if ($panel -and $panel.Children.Count -ge 3) {
+                    $hpPanel = $panel.Children[2]
+                    if ($hpPanel.Children.Count -ge 3) {
+                        $currentHpPanel = $hpPanel.Children[0]
+                        $totalHpPanel = $hpPanel.Children[2]
+                        if (($totalHpPanel.Children.Count -ge 2) -and ($currentHpPanel.Children.Count -ge 2)) {
+                            $currentHpBox = $currentHpPanel.Children[1]
+                            $totalHpBox = $totalHpPanel.Children[1]
+                            $currentHpBox.Text = $total.ToString()
+                            $totalHpBox.Text = $total.ToString()
+                        }
+                    }
+                }
+            }
+            # Hide the rollWindow after updating
+            $rollWindow.Hide()
+        })
+        $null = $rollPanel.Children.Add($numDiceLabel)
+        $null = $rollPanel.Children.Add($numDiceBox)
+        $null = $rollPanel.Children.Add($diceSidesLabel)
+        $null = $rollPanel.Children.Add($diceSidesCombo)
+        $null = $rollPanel.Children.Add($modifierLabel)
+        $null = $rollPanel.Children.Add($modifierBox)
+        $null = $rollPanel.Children.Add($rollButton)
+        $rollWindow.Content = $rollPanel
+        $rollWindow.ShowDialog() | Out-Null
+    })
+    $null = $contextMenu.Items.Add($rollHdMenuItem)
     $newPanel.ContextMenu = $contextMenu
 
     return $newPanel
