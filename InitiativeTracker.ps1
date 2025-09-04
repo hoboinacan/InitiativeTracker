@@ -11,6 +11,7 @@ $window = [Windows.Markup.XamlReader]::Load($reader)
 # Get the button control from the XAML
 $insertButton = $window.FindName("InsertButton")
 $mainPanel = $window.FindName("MainPanel")
+$initiativeListPanel = $window.FindName("InitiativeListPanel")
 
 # Load conditions from conditions.json
 $conditionsPath = Join-Path $PSScriptRoot 'cfg\conditions.json'
@@ -24,9 +25,11 @@ if (-not (Get-Variable -Name highlightIndex -Scope Script -ErrorAction SilentlyC
 function Update-HighlightIndex {
     param($panel)
     $grids = @()
-    foreach ($child in $panel.Children) {
-        if ($child -is [System.Windows.Controls.Grid]) {
-            $grids += $child
+    foreach ($col in $panel.Children) {
+        foreach ($child in $col.Children) {
+            if ($child -is [System.Windows.Controls.Grid]) {
+                $grids += $child
+            }
         }
     }
     if ($grids.Count -eq 0) { return $null }
@@ -39,16 +42,18 @@ function Update-HighlightIndex {
 function Set-AlternateShading {
     param($panel, $highlightedIndex = $null)
     $index = 0
-    foreach ($child in $panel.Children) {
-        if ($child -is [System.Windows.Controls.Grid]) {
-            if ($null -ne $highlightedIndex -and $index -eq $highlightedIndex) {
-                $child.Background = "#5555FF"
-            } elseif ($index % 2 -eq 0) {
-                $child.Background = "#222"
-            } else {
-                $child.Background = "#333"
+    foreach ($col in $panel.Children) {
+        foreach ($child in $col.Children) {
+            if ($child -is [System.Windows.Controls.Grid]) {
+                if ($null -ne $highlightedIndex -and $index -eq $highlightedIndex) {
+                    $child.Background = "#5555FF"
+                } elseif ($index % 2 -eq 0) {
+                    $child.Background = "#222"
+                } else {
+                    $child.Background = "#333"
+                }
+                $index++
             }
-            $index++
         }
     }
 }
@@ -306,8 +311,15 @@ function Add-EncounterPanel {
         $name = $parentPanel.Children[1].Text
         $result = [System.Windows.MessageBox]::Show("Are you sure you want to delete '$name'?", "Confirm Deletion", "YesNo", "Warning")
         if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
-            $mainPanel.Children.Remove($parentPanel)
-            Set-AlternateShading $mainPanel $script:highlightIndex
+            # Remove from the correct column in the InitiativeListPanel
+            foreach ($col in $initiativeListPanel.Children) {
+                if ($col -is [System.Windows.Controls.StackPanel] -and $col.Children.Contains($parentPanel)) {
+                    $col.Children.Remove($parentPanel)
+                    break
+                }
+            }
+            Set-AlternateShading $initiativeListPanel $script:highlightIndex
+            Resize-WindowToFitContent
         }
     })
     $null = $contextMenu.Items.Add($removeMenuItem)
@@ -318,10 +330,8 @@ function Add-EncounterPanel {
     $editConditionsMenuItem.Add_Click({
         param($sourceObj, $e)
         $parentPanel = $sourceObj.Parent.PlacementTarget
-        # Hide the encounter panel's container and next turn button while editing conditions
-        $encounterContainer = $parentPanel.Parent
-        $nextRoundButton.Visibility = "Collapsed"
-        $encounterContainer.Visibility = "Collapsed"
+        # Hide the initiative panel while editing conditions
+        $mainPanel.Visibility = "Collapsed"
         $editConditionsPanel = New-Object System.Windows.Controls.StackPanel
         $editConditionsPanel.Margin = [System.Windows.Thickness]::new(20)
         $editConditionsPanel.Background = "#222"
@@ -395,12 +405,12 @@ function Add-EncounterPanel {
             } elseif ($editConditionsPanel -is [System.Windows.UIElement]) {
                 $editConditionsPanel.SetValue([System.Windows.UIElement]::VisibilityProperty, [System.Windows.Visibility]::Collapsed)
             }
-            $encounterContainer = $parentPanel.Parent
-            # Show the encounter panel's container and next turn button again
-            if ($encounterContainer -and $encounterContainer.PSObject.Properties["Visibility"]) {
-                $encounterContainer.Visibility = "Visible"
-            } elseif ($encounterContainer -is [System.Windows.UIElement]) {
-                $encounterContainer.SetValue([System.Windows.UIElement]::VisibilityProperty, [System.Windows.Visibility]::Visible)
+            
+            # Show the main panel again
+            if ($mainPanel -and $mainPanel.PSObject.Properties["Visibility"]) {
+                $mainPanel.Visibility = "Visible"
+            } elseif ($mainPanel -is [System.Windows.UIElement]) {
+                $mainPanel.SetValue([System.Windows.UIElement]::VisibilityProperty, [System.Windows.Visibility]::Visible)
             }
             $nextRoundButton.Visibility = "Visible"
         })
@@ -413,13 +423,63 @@ function Add-EncounterPanel {
     return $newPanel
 }
 
+# After adding or removing panels, resize the window to fit all elements
+function Resize-WindowToFitContent {
+    $window.Dispatcher.Invoke([action]{
+        $window.SizeToContent = [System.Windows.SizeToContent]::WidthAndHeight
+        $window.UpdateLayout()
+        # Get screen working area
+        $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+        # Limit window height to screen height minus 100
+        $maxHeight = $screen.Height - 100
+        if ($window.ActualHeight -gt $maxHeight) {
+            $window.Height = $maxHeight
+            $window.SizeToContent = [System.Windows.SizeToContent]::Manual
+        }
+        # Limit window width to screen width minus 100
+        $maxWidth = $screen.Width - 100
+        if ($window.ActualWidth -gt $maxWidth) {
+            $window.Width = $maxWidth
+            $window.SizeToContent = [System.Windows.SizeToContent]::Manual
+        }
+    })
+}
+
+# Helper function to ensure MainPanel uses a horizontal StackPanel and adds columns as needed
+function Add-PanelToMainPanel {
+    param($panel)
+    # Ensure initiativeListPanel is a horizontal StackPanel
+    if ($initiativeListPanel.Orientation -ne "Horizontal") {
+        $initiativeListPanel.Orientation = "Horizontal"
+    }
+    # If there are no columns yet, create the first column
+    if ($initiativeListPanel.Children.Count -eq 0) {
+        $firstCol = New-Object System.Windows.Controls.StackPanel
+        $firstCol.Orientation = "Vertical"
+        $initiativeListPanel.Children.Add($firstCol)
+    }
+    $totalPanels = 0
+    foreach ($col in $initiativeListPanel.Children) {
+        if ($col -is [System.Windows.Controls.StackPanel]) {
+            $totalPanels += $col.Children.Count
+        }
+    }
+    $targetColIdx = [math]::Floor($totalPanels / 10)
+    while ($initiativeListPanel.Children.Count -le $targetColIdx) {
+        $newCol = New-Object System.Windows.Controls.StackPanel
+        $newCol.Orientation = "Vertical"
+        $initiativeListPanel.Children.Add($newCol)
+    }
+    $targetCol = $initiativeListPanel.Children[$targetColIdx]
+    $targetCol.Children.Add($panel)
+}
+
 # Add the click event handler
 $insertButton.Add_Click({
     $newPanel = Add-EncounterPanel
-    $insertIndex = $mainPanel.Children.Count - 1
-    $mainPanel.Children.Insert($insertIndex, $newPanel)
-    Set-AlternateShading $mainPanel $script:highlightIndex
-
+    Add-PanelToMainPanel $newPanel
+    Set-AlternateShading $initiativeListPanel $script:highlightIndex
+    Resize-WindowToFitContent
     #only allow Initiative to be float values
     $initiativeValue = $newPanel.Children[0].Children[1]
     $initiativeValue.Add_PreviewTextInput({
@@ -458,35 +518,16 @@ $insertButton.Add_Click({
 $sortAscMenuItem = $window.FindName("SortAscMenuItem")
 $sortDescMenuItem = $window.FindName("SortDescMenuItem")
 
-# Add click event to SortAscMenuItem to sort MainPanel children by initiativeValue (ascending)
+# Update sort functions to work with InitiativeListPanel columns
 $sortAscMenuItem.Add_Click({
     $panels = @()
-    foreach ($child in $mainPanel.Children) {
-        if ($child -is [System.Windows.Controls.Grid]) {
-            $panels += $child
-        }
-    }
-    $sortedPanels = $panels | Sort-Object {
-        $initiativePanel = $_.Children[0]
-        $initiativeValue = $initiativePanel.Children[1]
-        -[float]$initiativeValue.Text
-    }
-    foreach ($panel in $panels) {
-        $mainPanel.Children.Remove($panel)
-    }
-    $insertIndex = $mainPanel.Children.Count - 1
-    foreach ($panel in $sortedPanels) {
-        $mainPanel.Children.Insert($insertIndex, $panel)
-    }
-    Set-AlternateShading $mainPanel $script:highlightIndex
-})
-
-# Add click event to SortDescMenuItem to sort MainPanel children by initiativeValue (descending)
-$sortDescMenuItem.Add_Click({
-    $panels = @()
-    foreach ($child in $mainPanel.Children) {
-        if ($child -is [System.Windows.Controls.Grid]) {
-            $panels += $child
+    foreach ($col in $initiativeListPanel.Children) {
+        if ($col -is [System.Windows.Controls.StackPanel]) {
+            foreach ($child in $col.Children) {
+                if ($child -is [System.Windows.Controls.Grid]) {
+                    $panels += $child
+                }
+            }
         }
     }
     $sortedPanels = $panels | Sort-Object {
@@ -494,53 +535,92 @@ $sortDescMenuItem.Add_Click({
         $initiativeValue = $initiativePanel.Children[1]
         [float]$initiativeValue.Text
     }
-    foreach ($panel in $panels) {
-        $mainPanel.Children.Remove($panel)
+    # Remove all panels from columns
+    foreach ($col in $initiativeListPanel.Children) {
+        if ($col -is [System.Windows.Controls.StackPanel]) {
+            $col.Children.Clear()
+        }
     }
-    $insertIndex = $mainPanel.Children.Count - 1
-    foreach ($panel in $sortedPanels) {
-        $mainPanel.Children.Insert($insertIndex, $panel)
+    # Re-add sorted panels to columns of 10
+    for ($i = 0; $i -lt $sortedPanels.Count; $i++) {
+        $colIdx = [math]::Floor($i / 10)
+        while ($initiativeListPanel.Children.Count -le $colIdx) {
+            $newCol = New-Object System.Windows.Controls.StackPanel
+            $newCol.Orientation = "Vertical"
+            $initiativeListPanel.Children.Add($newCol)
+        }
+        $initiativeListPanel.Children[$colIdx].Children.Add($sortedPanels[$i])
     }
-    Set-AlternateShading $mainPanel $script:highlightIndex
+    Set-AlternateShading $initiativeListPanel $script:highlightIndex
+})
+
+# Add click event to SortDescMenuItem to sort MainPanel children by initiativeValue (descending)
+$sortDescMenuItem.Add_Click({
+    $panels = @()
+    foreach ($col in $initiativeListPanel.Children) {
+        if ($col -is [System.Windows.Controls.StackPanel]) {
+            foreach ($child in $col.Children) {
+                if ($child -is [System.Windows.Controls.Grid]) {
+                    $panels += $child
+                }
+            }
+        }
+    }
+    $sortedPanels = $panels | Sort-Object {
+        $initiativePanel = $_.Children[0]
+        $initiativeValue = $initiativePanel.Children[1]
+        -[float]$initiativeValue.Text
+    }
+    # Remove all panels from columns
+    foreach ($col in $initiativeListPanel.Children) {
+        if ($col -is [System.Windows.Controls.StackPanel]) {
+            $col.Children.Clear()
+        }
+    }
+    # Re-add sorted panels to columns of 10
+    for ($i = 0; $i -lt $sortedPanels.Count; $i++) {
+        $colIdx = [math]::Floor($i / 10)
+        while ($initiativeListPanel.Children.Count -le $colIdx) {
+            $newCol = New-Object System.Windows.Controls.StackPanel
+            $newCol.Orientation = "Vertical"
+            $initiativeListPanel.Children.Add($newCol)
+        }
+        $initiativeListPanel.Children[$colIdx].Children.Add($sortedPanels[$i])
+    }
+    Set-AlternateShading $initiativeListPanel $script:highlightIndex
 })
 
 # Add click event to NextRoundButton to highlight the next item in MainPanel
 $nextRoundButton = $window.FindName("NextRoundButton")
 $nextRoundButton.Add_Click({
-    # Get all panels except the InsertButton
-    $panels = @()
-    foreach ($child in $mainPanel.Children) {
-        if ($child -is [System.Windows.Controls.Grid]) {
-            $panels += $child
-        }
-    }
-    if ($panels.Count -eq 0) { return }
-    Update-HighlightIndex $mainPanel
-    Set-AlternateShading $mainPanel $script:highlightIndex
+    Update-HighlightIndex $initiativeListPanel
+    Set-AlternateShading $initiativeListPanel $script:highlightIndex
 })
 
 # Get the ExportMenuItem from XAML
 $exportMenuItem = $window.FindName("ExportMenuItem")
 
-# Add click event to ExportMenuItem to export encounter data to JSON file
+# Update export to work with InitiativeListPanel columns
 $exportMenuItem.Add_Click({
     $encounter = @()
-    foreach ($child in $mainPanel.Children) {
-        if ($child -is [System.Windows.Controls.Grid]) {
-            $initiative = $child.Children[0].Children[1].Text
-            $name = $child.Children[1].Text
-            # HP column: get TextBox from inside StackPanels (new layout)
-            $currentHp = $child.Children[2].Children[0].Children[1].Text
-            $totalHp = $child.Children[2].Children[2].Children[1].Text
-            # Get applied conditions from the label (with prefix removed)
-            $appliedLabel = $child.Children[3].Children[0]
-            $conditions = $appliedLabel.Content
-            $encounter += [PSCustomObject]@{
-                Initiative = $initiative
-                Name = $name
-                CurrentHP = $currentHp
-                TotalHP = $totalHp
-                Conditions = $conditions
+    foreach ($col in $initiativeListPanel.Children) {
+        if ($col -is [System.Windows.Controls.StackPanel]) {
+            foreach ($child in $col.Children) {
+                if ($child -is [System.Windows.Controls.Grid]) {
+                    $initiative = $child.Children[0].Children[1].Text
+                    $name = $child.Children[1].Text
+                    $currentHp = $child.Children[2].Children[0].Children[1].Text
+                    $totalHp = $child.Children[2].Children[2].Children[1].Text
+                    $appliedLabel = $child.Children[3].Children[0]
+                    $conditions = $appliedLabel.Content
+                    $encounter += [PSCustomObject]@{
+                        Initiative = $initiative
+                        Name = $name
+                        CurrentHP = $currentHp
+                        TotalHP = $totalHp
+                        Conditions = $conditions
+                    }
+                }
             }
         }
     }
@@ -568,41 +648,37 @@ $importMenuItem = $window.FindName("ImportMenuItem")
 
 # Add click event to ImportMenuItem to import encounter data from a JSON file
 $importMenuItem.Add_Click({
-    # Prompt user to select a JSON file
     $openFileDialog = New-Object System.Windows.Forms.OpenFileDialog
     $openFileDialog.Filter = "JSON files (*.json)|*.json"
     $openFileDialog.InitialDirectory = "$PSScriptRoot/encounters"
     $openFileDialog.Title = "Import Encounter"
     [void]$openFileDialog.ShowDialog()
     $filePath = $openFileDialog.FileName
-
     if (![string]::IsNullOrWhiteSpace($filePath) -and (Test-Path $filePath)) {
-        # Read and parse the JSON file
         $json = Get-Content $filePath -Raw
         $importData = ConvertFrom-Json $json
         $encounter = $importData.Encounter
         $script:highlightIndex = $importData.HighlightIndex
-
-        # Remove existing panels except InsertButton
-        $panelsToRemove = @()
-        foreach ($child in $mainPanel.Children) {
-            if ($child -is [System.Windows.Controls.Grid]) {
-                $panelsToRemove += $child
+        # Remove all panels from columns
+        foreach ($col in $initiativeListPanel.Children) {
+            if ($col -is [System.Windows.Controls.StackPanel]) {
+                $col.Children.Clear()
             }
         }
-        foreach ($panel in $panelsToRemove) {
-            $mainPanel.Children.Remove($panel)
-        }
-
-        # Add imported panels
-        $insertIndex = $mainPanel.Children.Count - 1
-        foreach ($entry in $encounter) {
+        # Re-add imported panels to columns of 10
+        for ($i = 0; $i -lt $encounter.Count; $i++) {
+            $entry = $encounter[$i]
             $newPanel = Add-EncounterPanel $entry.Initiative $entry.Name $entry.Conditions $entry.CurrentHP $entry.TotalHP
-            $mainPanel.Children.Insert($insertIndex, $newPanel)
-            $insertIndex++
+            $colIdx = [math]::Floor($i / 10)
+            while ($initiativeListPanel.Children.Count -le $colIdx) {
+                $newCol = New-Object System.Windows.Controls.StackPanel
+                $newCol.Orientation = "Vertical"
+                $initiativeListPanel.Children.Add($newCol)
+            }
+            $initiativeListPanel.Children[$colIdx].Children.Add($newPanel)
         }
-        # Redraw current turn highlight
-        Set-AlternateShading $mainPanel $script:highlightIndex
+        Set-AlternateShading $initiativeListPanel $script:highlightIndex
+        Resize-WindowToFitContent
     }
 })
 
@@ -795,7 +871,7 @@ $addPlayersMenuItem.Add_Click({
             $mainPanel.Children.Insert($insertIndex, $newPanel)
         }
     }
-    Set-AlternateShading $mainPanel $script:highlightIndex
+    Set-AlternateShading $initiativeListPanel $script:highlightIndex
 })
 
 # Show the window
