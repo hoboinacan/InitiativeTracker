@@ -53,6 +53,19 @@ function Set-AlternateShading {
     }
 }
 
+# Player data structure definition
+function New-Player {
+    param(
+        [string]$Name,
+        [bool]$Playing = $false
+    )
+    return [PSCustomObject]@{
+        Name = $Name
+        Playing = $Playing
+    }
+}
+
+# Create and return a new encounter panel
 function Add-EncounterPanel {
     param(
         [string]$initiative = "0",
@@ -266,20 +279,22 @@ function Add-EncounterPanel {
     [System.Windows.Controls.Grid]::SetColumn($hpPanel, 2)
 
     # Conditions column
-    $col3Panel = New-Object System.Windows.Controls.StackPanel
-    $col3Panel.Orientation = "Vertical"
-    $conditionsLabel = New-Object System.Windows.Controls.Label
-    $conditionsLabel.Content = "Conditions"
-    $conditionsLabel.Background="#333"
-    $conditionsLabel.Foreground="#EEE"
-    $conditionsLabel.VerticalAlignment = "Center"
-    $null = $col3Panel.Children.Add($conditionsLabel)
-    [System.Windows.Controls.Grid]::SetColumn($col3Panel, 3)
+    $conditionsPanel = New-Object System.Windows.Controls.StackPanel
+    $conditionsPanel.Orientation = "Vertical"
+    $appliedLabel = New-Object System.Windows.Controls.Label
+    $appliedLabel.Content = $conditions
+    $appliedLabel.FontSize = 14
+    $appliedLabel.Foreground = "#AAA"
+    $appliedLabel.Margin = [System.Windows.Thickness]::new(0,2,0,6)
+    $appliedLabel.HorizontalAlignment = "Left"
+    $appliedLabel.Visibility = [System.Windows.Visibility]::Visible
+    $null = $conditionsPanel.Children.Add($appliedLabel)
+    [System.Windows.Controls.Grid]::SetColumn($conditionsPanel, 3)
 
     $null = $newPanel.Children.Add($initiativePanel)
     $null = $newPanel.Children.Add($characterNameBox)
     $null = $newPanel.Children.Add($hpPanel)
-    $null = $newPanel.Children.Add($col3Panel)
+    $null = $newPanel.Children.Add($conditionsPanel)
 
     # Add right-click menu to remove panel
     $contextMenu = New-Object System.Windows.Controls.ContextMenu
@@ -296,6 +311,103 @@ function Add-EncounterPanel {
         }
     })
     $null = $contextMenu.Items.Add($removeMenuItem)
+
+    # Add Edit Conditions menu item
+    $editConditionsMenuItem = New-Object System.Windows.Controls.MenuItem
+    $editConditionsMenuItem.Header = "Edit Conditions"
+    $editConditionsMenuItem.Add_Click({
+        param($sourceObj, $e)
+        $parentPanel = $sourceObj.Parent.PlacementTarget
+        # Hide the encounter panel's container and next turn button while editing conditions
+        $encounterContainer = $parentPanel.Parent
+        $nextRoundButton.Visibility = "Collapsed"
+        $encounterContainer.Visibility = "Collapsed"
+        $editConditionsPanel = New-Object System.Windows.Controls.StackPanel
+        $editConditionsPanel.Margin = [System.Windows.Thickness]::new(20)
+        $editConditionsPanel.Background = "#222"
+        $title = New-Object System.Windows.Controls.Label
+        $title.Content = "Edit Conditions"
+        $title.FontSize = 18
+        $title.Foreground = "#EEE"
+        $title.HorizontalAlignment = "Center"
+        $null = $editConditionsPanel.Children.Add($title)
+        $currentConditions = $parentPanel.Children[3].Children[0].Content -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+        # Create a grid with 3 columns for checkboxes
+        $checkboxGrid = New-Object System.Windows.Controls.Grid
+        for ($i = 0; $i -lt 3; $i++) {
+            $col = New-Object System.Windows.Controls.ColumnDefinition
+            $col.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+            $checkboxGrid.ColumnDefinitions.Add($col)
+        }
+        $toggles = @()
+        $conditionsPerCol = [math]::Ceiling($conditions.Count / 3)
+        for ($colIdx = 0; $colIdx -lt 3; $colIdx++) {
+            $stack = New-Object System.Windows.Controls.StackPanel
+            $stack.Orientation = "Vertical"
+            $stack.HorizontalAlignment = "Center"
+            $startIdx = $colIdx * $conditionsPerCol
+            $endIdx = [math]::Min($startIdx + $conditionsPerCol, $conditions.Count)
+            for ($i = $startIdx; $i -lt $endIdx; $i++) {
+                $cond = $conditions[$i]
+                $cb = New-Object System.Windows.Controls.CheckBox
+                $condName = $cond
+                $condDesc = $null
+                if ($cond -is [PSCustomObject] -or $cond -is [System.Collections.IDictionary]) {
+                    if ($cond.PSObject.Properties["Name"]) {
+                        $condName = $cond.Name
+                    }
+                    if ($cond.PSObject.Properties["Description"]) {
+                        $condDesc = $cond.Description
+                    }
+                }
+                $cb.Content = $condName
+                if ($condDesc) { $cb.ToolTip = $condDesc }
+                $cb.IsChecked = $currentConditions -contains $condName
+                $cb.Margin = [System.Windows.Thickness]::new(0,2,0,2)
+                $null = $stack.Children.Add($cb)
+                $toggles += $cb
+            }
+            [System.Windows.Controls.Grid]::SetColumn($stack, $colIdx)
+            $checkboxGrid.Children.Add($stack)
+        }
+        $editConditionsPanel.Children.Add($checkboxGrid)
+        $editConditionsPanel.Tag = @{ Toggles = $toggles; ParentPanel = $parentPanel }
+        $doneBtn = New-Object System.Windows.Controls.Button
+        $doneBtn.Content = "Done"
+        $doneBtn.Width = 80
+        $doneBtn.Margin = [System.Windows.Thickness]::new(0,10,0,0)
+        $doneBtn.HorizontalAlignment = "Center"
+        $doneBtn.Add_Click({
+            param($sourceObj, $e)
+            $editConditionsPanel = $sourceObj.Parent
+            $tag = $editConditionsPanel.Tag
+            $toggles = $tag.Toggles
+            $parentPanel = $tag.ParentPanel
+            $selected = $toggles | Where-Object { $_.IsChecked } | ForEach-Object { $_.Content }
+            if ($parentPanel -and $parentPanel.Children.Count -ge 4 -and $parentPanel.Children[3].Children.Count -ge 1) {
+                # Use the appliedConditions label (already created as Children[0] in conditionsPanel)
+                $appliedConditionsLabel = $parentPanel.Children[3].Children[0]
+                $appliedConditionsLabel.Content = ($selected -join ', ')
+                $parentPanel.Tag = $selected # Save conditions array in Tag property for this panel
+            }
+            if ($editConditionsPanel -and $editConditionsPanel.PSObject.Properties["Visibility"]) {
+                $editConditionsPanel.Visibility = "Collapsed"
+            } elseif ($editConditionsPanel -is [System.Windows.UIElement]) {
+                $editConditionsPanel.SetValue([System.Windows.UIElement]::VisibilityProperty, [System.Windows.Visibility]::Collapsed)
+            }
+            $encounterContainer = $parentPanel.Parent
+            # Show the encounter panel's container and next turn button again
+            if ($encounterContainer -and $encounterContainer.PSObject.Properties["Visibility"]) {
+                $encounterContainer.Visibility = "Visible"
+            } elseif ($encounterContainer -is [System.Windows.UIElement]) {
+                $encounterContainer.SetValue([System.Windows.UIElement]::VisibilityProperty, [System.Windows.Visibility]::Visible)
+            }
+            $nextRoundButton.Visibility = "Visible"
+        })
+        $null = $editConditionsPanel.Children.Add($doneBtn)
+        $window.Content.Children.Add($editConditionsPanel)
+    })
+    $null = $contextMenu.Items.Add($editConditionsMenuItem)
     $newPanel.ContextMenu = $contextMenu
 
     return $newPanel
@@ -420,7 +532,9 @@ $exportMenuItem.Add_Click({
             # HP column: get TextBox from inside StackPanels (new layout)
             $currentHp = $child.Children[2].Children[0].Children[1].Text
             $totalHp = $child.Children[2].Children[2].Children[1].Text
-            $conditions = $child.Children[3].Children[0].Text
+            # Get applied conditions from the label (with prefix removed)
+            $appliedLabel = $child.Children[3].Children[0]
+            $conditions = $appliedLabel.Content
             $encounter += [PSCustomObject]@{
                 Initiative = $initiative
                 Name = $name
@@ -494,18 +608,21 @@ $importMenuItem.Add_Click({
 
 # Players list storage and persistence
 $playersFile = Join-Path $PSScriptRoot 'players\player_cache.json'
-# Player data structure: @{ Name = ..., Playing = $false }
 if (Test-Path $playersFile) {
     try {
         $loadedPlayers = Get-Content $playersFile -Raw | ConvertFrom-Json
         $script:players = New-Object System.Collections.ArrayList
         foreach ($p in $loadedPlayers) {
+            $conditionsArr = @()
+            if ($p.PSObject.Properties["Conditions"]) {
+                $conditionsArr = $p.Conditions
+            }
             if ($p -is [string]) {
-                $null = $script:players.Add([PSCustomObject]@{ Name = $p; Playing = $false })
+                $null = $script:players.Add((New-Player -Name $p))
             } elseif ($p.PSObject.Properties["Name"] -and $p.PSObject.Properties["Playing"]) {
-                $null = $script:players.Add([PSCustomObject]@{ Name = $p.Name; Playing = $p.Playing })
+                $null = $script:players.Add((New-Player -Name $p.Name -Playing $p.Playing -Conditions $conditionsArr))
             } else {
-                $null = $script:players.Add([PSCustomObject]@{ Name = $p; Playing = $false })
+                $null = $script:players.Add((New-Player -Name $p))
             }
         }
     } catch {}
@@ -582,7 +699,7 @@ $editPlayersMenuItem.Add_Click({
         $playerPanel = $parentPanel.Parent
         $playerListView = $playerPanel.Children[1]
         if ($name -and (-not ($script:players | Where-Object { $_.Name -eq $name }))) {
-            $null = $script:players.Add([PSCustomObject]@{ Name = $name; Playing = $false })
+            $null = $script:players.Add((New-Player -Name $name))
             $playerListView.ItemsSource = $null
             $playerListView.ItemsSource = $script:players
             $nameBox.Text = ""
