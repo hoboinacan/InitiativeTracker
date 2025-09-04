@@ -77,7 +77,8 @@ function Add-EncounterPanel {
         [string]$name = "Name",
         [string]$conditions = "",
         [string]$currentHp = "CurHP",
-        [string]$totalHp = "TotHP"
+        [string]$totalHp = "TotHP",
+        [switch]$isPlayer = $false
     )
     $newPanel = New-Object System.Windows.Controls.Grid
     $newPanel.Margin = [System.Windows.Thickness]::new(0,0,0,10)
@@ -92,6 +93,12 @@ function Add-EncounterPanel {
     $newPanel.ColumnDefinitions[1].Width = [System.Windows.GridLength]::Auto
     $newPanel.ColumnDefinitions[2].Width = [System.Windows.GridLength]::Auto
     $newPanel.ColumnDefinitions[3].Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+
+    if($isPlayer) {
+        $newPanel.Tag = "Player"
+    } else {
+        $newPanel.Tag = "NPC"
+    }
 
     # Initiative column
     $initiativePanel = New-Object System.Windows.Controls.StackPanel
@@ -562,6 +569,7 @@ function Add-EncounterPanel {
         $rollWindow.ShowDialog() | Out-Null
     })
     $null = $contextMenu.Items.Add($rollHdMenuItem)
+
     $newPanel.ContextMenu = $contextMenu
 
     return $newPanel
@@ -732,6 +740,116 @@ $sortDescMenuItem.Add_Click({
         $initiativeListPanel.Children[$colIdx].Children.Add($sortedPanels[$i])
     }
     Set-AlternateShading $initiativeListPanel $script:highlightIndex
+})
+
+# Get RollNPCInitiative menu item from XAML
+$rollNpcInitMenuItem = $window.FindName("RollNPCInitiative")
+
+$rollNpcInitMenuItem.Add_Click({
+    # Create pop-out window
+    $npcWindow = New-Object System.Windows.Window
+    $npcWindow.Title = "Roll NPC Initiative"
+    $npcWindow.Width = 350
+    $npcWindow.Height = 220
+    $npcWindow.WindowStartupLocation = "CenterScreen"
+    $npcWindow.Background = [System.Windows.Media.Brushes]::Black
+    $npcPanel = New-Object System.Windows.Controls.StackPanel
+    $npcPanel.Margin = [System.Windows.Thickness]::new(20)
+    $npcPanel.Background = "#222"
+
+    # Filter label and textbox
+    $filterLabel = New-Object System.Windows.Controls.Label
+    $filterLabel.Content = "Only roll matching NPC Names(wildcard *)"
+    $filterLabel.HorizontalAlignment = "Center"
+    $filterLabel.Foreground = "#EEE"
+    $filterBox = New-Object System.Windows.Controls.TextBox
+    $filterBox.Text = "*"
+    $filterBox.Width = 200
+    $filterBox.Margin = [System.Windows.Thickness]::new(0,0,0,10)
+    $filterBox.Background = "#333"
+    $filterBox.Foreground = "#EEE"
+    $filterBox.BorderBrush = "#555"
+    $filterBox.TextAlignment = "Center"
+
+    # Modifier label and textbox
+    $modLabel = New-Object System.Windows.Controls.Label
+    $modLabel.Content = "Initiative Modifier:"
+    $modLabel.HorizontalAlignment = "Center"
+    $modLabel.Foreground = "#EEE"
+    $modBox = New-Object System.Windows.Controls.TextBox
+    $modBox.Width = 60
+    $modBox.Text = "0"
+    $modBox.Margin = [System.Windows.Thickness]::new(0,0,0,10)
+    $modBox.Background = "#333"
+    $modBox.Foreground = "#EEE"
+    $modBox.BorderBrush = "#555"
+    $modBox.TextAlignment = "Center"
+
+    # Buttons panel
+    $buttonsPanel = New-Object System.Windows.Controls.StackPanel
+    $buttonsPanel.Orientation = "Horizontal"
+    $buttonsPanel.HorizontalAlignment = "Center"
+    $buttonsPanel.Margin = [System.Windows.Thickness]::new(0,10,0,0)
+
+    $rollBtn = New-Object System.Windows.Controls.Button
+    $rollBtn.Content = "Roll"
+    $rollBtn.Width = 80
+    $rollBtn.Margin = [System.Windows.Thickness]::new(0,0,10,0)
+    $rollBtn.Background = "#5555FF"
+    $rollBtn.Foreground = "#EEE"
+    $rollBtn.BorderBrush = "#222"
+    $rollBtn.Add_Click({
+        #parse filter
+        if( [string]::IsNullOrWhiteSpace($filterBox.Text)) {
+            $filter = ".*"
+        } else {
+            $filter = $filterBox.Text -replace '\*', '.*'
+        }
+        
+        # Parse modifier
+        $modifier = 0
+        if ($modBox.Text -match '^-?[0-9]+$') { $modifier = [int]$modBox.Text }
+        # Loop through all columns and panels
+        foreach ($col in $initiativeListPanel.Children) {
+            if ($col -is [System.Windows.Controls.StackPanel]) {
+                foreach ($panel in $col.Children) {
+                    $entryName = $panel.Children[1].Text
+                    if ($panel -is [System.Windows.Controls.Grid] -and $panel.Tag -eq 'NPC' -and $entryName -imatch $filter) {
+                        # Find initiativeValue textbox
+                        if ($panel.Children.Count -ge 1) {
+                            $initiativePanel = $panel.Children[0]
+                            if ($initiativePanel.Children.Count -ge 2) {
+                                $initiativeValue = $initiativePanel.Children[1]
+                                $roll = (Get-Random -Minimum 1 -Maximum 20) + $modifier
+                                $initiativeValue.Text = $roll.ToString()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        $npcWindow.Close()
+    })
+
+    $cancelBtn = New-Object System.Windows.Controls.Button
+    $cancelBtn.Content = "Cancel"
+    $cancelBtn.Width = 80
+    $cancelBtn.Background = "#444"
+    $cancelBtn.Foreground = "#EEE"
+    $cancelBtn.BorderBrush = "#222"
+    $cancelBtn.Add_Click({ $npcWindow.Close() })
+
+    $null = $buttonsPanel.Children.Add($rollBtn)
+    $null = $buttonsPanel.Children.Add($cancelBtn)
+
+    $null = $npcPanel.Children.Add($filterLabel)
+    $null = $npcPanel.Children.Add($filterBox)
+    $null = $npcPanel.Children.Add($modLabel)
+    $null = $npcPanel.Children.Add($modBox)
+    $null = $npcPanel.Children.Add($buttonsPanel)
+
+    $npcWindow.Content = $npcPanel
+    $npcWindow.ShowDialog() | Out-Null
 })
 
 # Add click event to NextRoundButton to highlight the next item in MainPanel
@@ -1019,7 +1137,7 @@ $addPlayersMenuItem.Add_Click({
     foreach ($player in $script:players) {
         if (-not $player.Playing) { continue }
         if ($existingNames -contains $player.Name) { continue }
-        $newPanel = Add-EncounterPanel "0" $player.Name "" "" ""
+        $newPanel = Add-EncounterPanel "0" $player.Name "" "" "" -isPlayer
         Add-PanelToMainPanel $newPanel
     }
     Set-AlternateShading $initiativeListPanel $script:highlightIndex

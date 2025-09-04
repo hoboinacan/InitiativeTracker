@@ -16,10 +16,14 @@
             <MenuItem Header="Players" Background="#333" Foreground="#EEE">
                 <MenuItem Name="EditPlayers" Header="Edit Players" Background="#333" Foreground="#EEE"/>
                 <MenuItem Name="AddPlayers" Header="Add Players" Background="#333" Foreground="#EEE"/>
-            </MenuItem>                
+            </MenuItem>
             <MenuItem Header="Sort" Background="#333" Foreground="#EEE">
                 <MenuItem Name="SortAscMenuItem" Header="Ascending" Background="#333" Foreground="#EEE"/>
                 <MenuItem Name="SortDescMenuItem" Header="Descending" Background="#333" Foreground="#EEE"/>
+            </MenuItem>
+            <MenuItem Header="Dice Roller" Background="#333" Foreground="#EEE">
+                <MenuItem Name="RollNPCInitiative" Header="Roll NPC Init" Background="#333" Foreground="#EEE"/>
+                <MenuItem Name="OpenDiceRoller" Header="Open Dice Roller" Background="#333" Foreground="#EEE"/>
             </MenuItem>
         </Menu>
         <StackPanel Name="MainPanel" Grid.Row="2" HorizontalAlignment="Stretch" VerticalAlignment="Top">
