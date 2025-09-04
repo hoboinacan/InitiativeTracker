@@ -984,7 +984,7 @@ $exportMenuItem.Add_Click({
                     $currentHp = $child.Children[2].Children[0].Children[1].Text
                     $totalHp = $child.Children[2].Children[2].Children[1].Text
                     $appliedLabel = $child.Children[3].Children[0]
-                    $conditions = $appliedLabel.Content
+                    $conditions = $appliedLabel.Text
                     $encounter += [PSCustomObject]@{
                         Initiative = $initiative
                         Name = $name
