@@ -1,0 +1,1 @@
+powershell -NoProfile -File InitiativeTracker.ps1
