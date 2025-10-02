@@ -763,7 +763,7 @@ $rollNpcInitMenuItem.Add_Click({
     $filterLabel.HorizontalAlignment = "Center"
     $filterLabel.Foreground = "#EEE"
     $filterBox = New-Object System.Windows.Controls.TextBox
-    $filterBox.Text = "*"
+    $filterBox.Text = ""
     $filterBox.Width = 200
     $filterBox.Margin = [System.Windows.Thickness]::new(0,0,0,10)
     $filterBox.Background = "#333"
@@ -801,10 +801,10 @@ $rollNpcInitMenuItem.Add_Click({
     $rollBtn.Add_Click({
         #parse filter
         if( [string]::IsNullOrWhiteSpace($filterBox.Text)) {
-            $filter = ".*"
-        } else {
-            $filter = $filterBox.Text -replace '\*', '.*'
+            [System.Windows.MessageBox]::Show("Please enter a filter to match NPC names (use * as wildcard).","Input Required","OK","Warning") | Out-Null
+            return
         }
+        $filter = $filterBox.Text -replace '\*', '.*'
         
         # Parse modifier
         $modifier = 0
