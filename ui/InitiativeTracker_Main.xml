@@ -15,7 +15,7 @@
             </MenuItem>
             <MenuItem Header="Players" Background="#333" Foreground="#EEE">
                 <MenuItem Name="EditPlayers" Header="Edit Players" Background="#333" Foreground="#EEE"/>
-                <MenuItem Name="AddPlayers" Header="Add Players" Background="#333" Foreground="#EEE"/>
+                <MenuItem Name="AddPlayers" Header="Add active players to initiative list" Background="#333" Foreground="#EEE"/>
             </MenuItem>
             <MenuItem Header="Sort" Background="#333" Foreground="#EEE">
                 <MenuItem Name="SortAscMenuItem" Header="Ascending" Background="#333" Foreground="#EEE"/>
